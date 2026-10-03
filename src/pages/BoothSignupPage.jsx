@@ -1,0 +1,36 @@
+import ScreenShell from '../components/ScreenShell'
+import AuthHeader from '../components/AuthHeader'
+import FormField from '../components/FormField'
+
+// Screen 5 — 부스 운영자 (booth operator) signup form.
+export default function BoothSignupPage() {
+  return (
+    <ScreenShell>
+      <AuthHeader backTo="/login" />
+
+      <div className="auth-body">
+        <div className="auth-title">
+          <h2>부스 운영자 회원가입</h2>
+        </div>
+
+        <div className="auth-fields">
+          <FormField label="아이디" placeholder="아이디를 입력해 주세요" action="중복 확인" autoComplete="username" />
+          <FormField label="비밀번호" type="password" placeholder="비밀번호를 입력해 주세요" autoComplete="new-password" />
+          <FormField
+            label="비밀번호 확인"
+            type="password"
+            placeholder="비밀번호를 다시 입력해 주세요"
+            autoComplete="new-password"
+          />
+          <FormField label="닉네임" placeholder="닉네임을 입력해 주세요" />
+          <FormField label="전화번호 (필수)" placeholder="010-0000-0000" />
+          <FormField label="이메일 (선택)" type="email" placeholder="example@email.com" autoComplete="email" />
+        </div>
+
+        <button type="button" className="btn btn-primary">
+          회원가입 완료
+        </button>
+      </div>
+    </ScreenShell>
+  )
+}

@@ -1,0 +1,27 @@
+:root {
+  --sans: 'Gothic A1', system-ui, 'Segoe UI', 'Malgun Gothic', Roboto, sans-serif;
+  color-scheme: light;
+  font: 500 16px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+button {
+  font: inherit;
+}
+
+input {
+  font: inherit;
+}

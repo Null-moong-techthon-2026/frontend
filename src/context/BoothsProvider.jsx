@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { BOOTH_STATUS } from '../constants/booth'
+import { BOOTH_OPERATING_STATUS, BOOTH_STATUS } from '../constants/booth'
 import { MOCK_BOOTHS } from '../mocks/booths'
 import { BoothsContext } from './BoothsContext'
 
@@ -15,14 +15,23 @@ export default function BoothsProvider({ children }) {
     setBooths((prev) => prev.map((b) => (b.id === id ? { ...b, ...fields } : b)))
   }, [])
 
-  // status: a BOOTH_STATUS value. Leaving 'approved' also clears boothNo.
+  // status: a BOOTH_STATUS value. Leaving 'approved' also clears boothNo and operatingStatus;
+  // a newly approved booth starts as 'preparing'.
   // TODO(backend): PATCH booth status.
   const setStatus = useCallback(
     (id, status) => {
       setBooths((prev) =>
         prev.map((b) =>
           b.id === id
-            ? { ...b, status, boothNo: status === BOOTH_STATUS.APPROVED ? b.boothNo : null }
+            ? {
+                ...b,
+                status,
+                boothNo: status === BOOTH_STATUS.APPROVED ? b.boothNo : null,
+                operatingStatus:
+                  status === BOOTH_STATUS.APPROVED
+                    ? (b.operatingStatus ?? BOOTH_OPERATING_STATUS.PREPARING)
+                    : null,
+              }
             : b,
         ),
       )

@@ -25,9 +25,17 @@ npm run lint     # 코드 검사
 | `/signup/organizer` | 축제 주최자 회원가입 |
 | `/signup/booth` | 부스 운영자 회원가입 |
 | `/home` | 메인 (준비 중) |
+| `/organizer/dashboard` | 주최자 · 대시보드 |
 | `/organizer/map` | 주최자 · 지도 제작 |
 | `/organizer/booths` | 주최자 · 부스 관리 |
 | `/organizer/notices` | 주최자 · 공지사항 |
+
+### 대시보드 (`/organizer/dashboard`)
+- 행사 정보, 부스 모집 현황, 부스 운영 요약(전체 부스 · 운영 중 · 준비 중 · 품절 · 마감)
+- **행사 정보 수정**: 이미지·이름·날짜·장소·소개를 고치면 사이드바 카드 등 모든 화면에 바로 반영
+- 행사 진행 상태는 날짜로 자동 표시: 시작 전 **진행 예정**, 기간 중 **진행 중**, 끝난 뒤 **진행 종료**
+- 숫자는 부스 관리·공지사항의 데이터에서 계산되어 **다른 화면과 항상 일치**
+- 최근 공지사항(공지사항 화면과 같은 순서), 부스 운영자 초대 코드·링크 복사, 방문객 링크·QR(임시)
 
 ### 지도 제작 (`/organizer/map`)
 - 평면도 이미지 업로드 · 삭제, 확대/축소 · 이동
@@ -53,10 +61,10 @@ npm run lint     # 코드 검사
 
 ```
 src/
-├─ pages/        화면 (랜딩, 로그인, 회원가입, 지도 제작, 부스 관리, 공지사항)
+├─ pages/        화면 (랜딩, 로그인, 회원가입, 대시보드, 지도 제작, 부스 관리, 공지사항)
 ├─ components/   공통 컴포넌트 (OrganizerLayout 등)
 ├─ constants/    상태·카테고리·핀 종류 코드와 한글 라벨
-├─ context/      부스·공지 목록 저장소 (BoothsProvider, NoticesProvider)
+├─ context/      행사·부스·공지 저장소 (EventProvider, BoothsProvider, NoticesProvider)
 ├─ utils/        날짜 포맷 등 공통 함수
 ├─ mocks/        가짜 데이터 (백엔드 연동 시 삭제)
 ├─ assets/       이미지, 핀 아이콘

@@ -12,6 +12,7 @@
  * @property {BoothStatus} status
  * @property {string} appliedAt               ISO date, YYYY-MM-DD
  * @property {number | null} boothNo          booth number, only while approved
+ * @property {'preparing' | 'open' | 'soldout' | 'closed' | null} operatingStatus  day-of status; only approved booths have one (see BOOTH_OPERATING_STATUS)
  * @property {string} intro                   운영 소개
  * @property {{ name: string, phone: string, email: string }} applicant
  * @property {{ id: string, name: string, url: string | null }[]} documents
@@ -41,6 +42,20 @@
  * @property {NoticeStatus} status
  * @property {string | null} publishedAt      'YYYY-MM-DDTHH:mm'; first time it went live
  * @property {string} updatedAt               'YYYY-MM-DDTHH:mm'
+ *
+ * @typedef {Object} Event                   the festival being managed (sidebar + dashboard).
+ *   Progress (진행 예정/진행 중/진행 종료) is not a field: derive it from the dates (utils/event.js).
+ * @property {string} name
+ * @property {string} startDate               YYYY-MM-DD
+ * @property {string} endDate                 YYYY-MM-DD
+ * @property {string} venue
+ * @property {string | null} imageUrl         cover image shown on the dashboard (placeholder when null)
+ * @property {string} intro                   line breaks are kept
+ * @property {string} recruitDeadline         'YYYY-MM-DDTHH:mm'
+ * @property {number} recruitTarget           teams the organizer wants to recruit
+ * @property {string} inviteCode              booth-operator invite code
+ * @property {string} inviteUrl               booth-operator invite link
+ * @property {string} visitorUrl              visitor link (also encoded in the QR)
  *
  * @typedef {Object} Floorplan                uploaded floor-plan image
  * @property {string} url

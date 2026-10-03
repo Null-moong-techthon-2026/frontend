@@ -70,6 +70,12 @@
   font-weight: 700;
 }
 
+.om-badge.is-muted {
+  background: var(--om-surface);
+  border: 1px solid var(--om-border);
+  color: var(--om-ink-soft);
+}
+
 .om-nav {
   display: flex;
   flex-direction: column;

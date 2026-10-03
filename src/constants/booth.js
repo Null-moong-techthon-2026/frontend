@@ -26,3 +26,18 @@ export const BOOTH_CATEGORY_LABEL = {
   [BOOTH_CATEGORY.EXPERIENCE]: '체험',
   [BOOTH_CATEGORY.GOODS]: '굿즈',
 }
+
+// Day-of status of an APPROVED booth (separate from the application status above).
+export const BOOTH_OPERATING_STATUS = {
+  PREPARING: 'preparing', // 준비 중
+  OPEN: 'open', // 운영 중
+  SOLD_OUT: 'soldout', // 품절
+  CLOSED: 'closed', // 마감
+}
+
+export const BOOTH_OPERATING_STATUS_LABEL = {
+  [BOOTH_OPERATING_STATUS.PREPARING]: '준비 중',
+  [BOOTH_OPERATING_STATUS.OPEN]: '운영 중',
+  [BOOTH_OPERATING_STATUS.SOLD_OUT]: '품절',
+  [BOOTH_OPERATING_STATUS.CLOSED]: '마감',
+}

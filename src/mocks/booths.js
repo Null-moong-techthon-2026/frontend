@@ -1,7 +1,12 @@
 // MOCK DATA — placeholder rows so the UI has something to show. Delete this file when the real
 // data comes from the backend; the shape below is the Booth model (see BACKEND_INTEGRATION.md).
 
-import { BOOTH_CATEGORY_LABEL, BOOTH_CATEGORY as C, BOOTH_STATUS as S } from '../constants/booth'
+import {
+  BOOTH_CATEGORY_LABEL,
+  BOOTH_CATEGORY as C,
+  BOOTH_OPERATING_STATUS as O,
+  BOOTH_STATUS as S,
+} from '../constants/booth'
 
 // [name, appliedAt, category, applicant name, status, boothNo]
 const ROWS = [
@@ -25,6 +30,10 @@ const ROWS = [
   ['수제 쿠키 하우스', '2026-09-10', C.FOOD, '노현우', S.APPROVED, 10],
 ]
 
+// Operating status handed out to approved booths in order (the 10 approved rows).
+const OPERATING = [O.OPEN, O.OPEN, O.PREPARING, O.OPEN, O.SOLD_OUT, O.OPEN, O.CLOSED, O.OPEN, O.PREPARING, O.OPEN]
+let approvedSeen = 0
+
 export const MOCK_BOOTHS = ROWS.map(([name, appliedAt, category, applicantName, status, boothNo], i) => ({
   id: i + 1,
   name,
@@ -32,6 +41,7 @@ export const MOCK_BOOTHS = ROWS.map(([name, appliedAt, category, applicantName, 
   status,
   appliedAt, // ISO date (YYYY-MM-DD)
   boothNo, // number | null — assigned once the booth is placed on the map
+  operatingStatus: status === S.APPROVED ? OPERATING[approvedSeen++ % OPERATING.length] : null, // approved booths only
   intro: `${name}에서 간단한 ${BOOTH_CATEGORY_LABEL[category]} 관련 상품을 판매합니다.`,
   applicant: {
     name: applicantName,

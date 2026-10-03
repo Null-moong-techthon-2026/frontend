@@ -1,9 +1,13 @@
 import { useNavigate } from 'react-router-dom'
 import boothLogo from '../assets/booth-logo.png'
+import { EVENT_PROGRESS, EVENT_PROGRESS_LABEL } from '../constants/event'
+import { useEvent } from '../context/useEvent'
+import { formatDateRange } from '../utils/date'
+import { getEventProgress } from '../utils/event'
 import '../pages/organizer-map.css'
 
 const NAV = [
-  { key: 'dashboard', label: '대시보드', icon: 'grid' },
+  { key: 'dashboard', label: '대시보드', icon: 'grid', to: '/organizer/dashboard' },
   { key: 'map', label: '지도 제작', icon: 'map', to: '/organizer/map' },
   { key: 'booths', label: '부스 관리', icon: 'store', to: '/organizer/booths' },
   { key: 'recruit', label: '부스 모집', icon: 'megaphone' },
@@ -28,6 +32,7 @@ export function Icon({ name }) {
     upload: <path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4" />,
     image: <path d="M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15 9h.01" />,
     plus: <path d="M12 5v14M5 12h14" />,
+    calendar: <path d="M5 6h14v14H5zM5 10h14M9 4v4m6-4v4" />,
     search: <path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5-2 4 4" />,
     chevron: <path d="m9 6 6 6-6 6" />,
     trash: <path d="M4 7h16M9 7V4h6v3m-7 0 1 13h8l1-13" />,
@@ -55,6 +60,8 @@ export function Icon({ name }) {
 // Shared organizer chrome: sidebar + white top bar + page header. Pages render their body as children.
 export default function OrganizerLayout({ active, crumb, title, subtitle, actions, children }) {
   const navigate = useNavigate()
+  const { event } = useEvent()
+  const progress = getEventProgress(event.startDate, event.endDate)
 
   return (
     <div className="om-app">
@@ -65,9 +72,11 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
         </div>
 
         <div className="om-event-card">
-          <p className="om-event-name">비룡제 2026</p>
-          <p className="om-event-date">2026.09.22 ~ 09.24</p>
-          <span className="om-badge">준비 중</span>
+          <p className="om-event-name">{event.name}</p>
+          <p className="om-event-date">{formatDateRange(event.startDate, event.endDate)}</p>
+          <span className={`om-badge${progress === EVENT_PROGRESS.ONGOING ? '' : ' is-muted'}`}>
+            {EVENT_PROGRESS_LABEL[progress]}
+          </span>
         </div>
 
         <nav className="om-nav">

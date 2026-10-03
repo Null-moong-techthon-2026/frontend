@@ -6,9 +6,11 @@ import BoothSignupPage from './pages/BoothSignupPage'
 import PlaceholderPage from './pages/PlaceholderPage'
 import OrganizerMapPage from './pages/OrganizerMapPage'
 import BoothManagePage from './pages/BoothManagePage'
+import DashboardPage from './pages/DashboardPage'
 import NoticePage from './pages/NoticePage'
 import BoothsProvider from './context/BoothsProvider'
 import NoticesProvider from './context/NoticesProvider'
+import EventProvider from './context/EventProvider'
 import './App.css'
 
 // 5 auth wireframes + routing between them:
@@ -19,6 +21,7 @@ import './App.css'
 //   /signup/booth      (5) 부스 운영자 회원가입
 function App() {
   return (
+    <EventProvider>
     <BoothsProvider>
     <NoticesProvider>
     <Routes>
@@ -29,12 +32,14 @@ function App() {
       <Route path="/signup/booth" element={<BoothSignupPage />} />
       <Route path="/home" element={<PlaceholderPage />} />
       <Route path="/organizer/map" element={<OrganizerMapPage />} />
+      <Route path="/organizer/dashboard" element={<DashboardPage />} />
       <Route path="/organizer/booths" element={<BoothManagePage />} />
       <Route path="/organizer/notices" element={<NoticePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </NoticesProvider>
     </BoothsProvider>
+    </EventProvider>
   )
 }
 

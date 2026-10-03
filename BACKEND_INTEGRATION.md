@@ -19,6 +19,13 @@
 | `src/mocks/notices.js` | **가짜 공지 5건.** 백엔드가 붙으면 삭제 |
 | `src/context/NoticesProvider.jsx` | 공지 목록의 **유일한 저장소** (`useNotices()`) |
 | `src/pages/NoticePage.jsx` | 공지사항 (열람 · 작성 · 수정) |
+| `src/constants/event.js` | 행사 진행 상태(진행 예정/진행 중/진행 종료) 코드와 한글 라벨 |
+| `src/utils/event.js` | 날짜로 진행 상태를 계산하는 `getEventProgress` |
+| `src/mocks/event.js` | **가짜 행사 정보** (이름·일정·장소·모집·초대 코드/링크). 백엔드가 붙으면 삭제 |
+| `src/context/EventProvider.jsx` | 행사 정보의 **유일한 저장소** (`useEvent()` → `event`, `updateEvent`). 사이드바·대시보드·초대 링크가 같이 읽음 |
+| `src/components/EventEditModal.jsx` | 행사 정보 수정 창 (이미지·이름·날짜·장소·소개) |
+| `src/pages/DashboardPage.jsx` | 대시보드 (행사 정보 · 모집 현황 · 부스 운영 요약 · 최근 공지 · 초대/방문객 링크) |
+| `src/utils/notice.js` | 공지 목록·대시보드가 같이 쓰는 정렬(`sortNotices`)·대상 문구(`audienceText`) |
 
 > 화면 문구는 한글 라벨이지만, **서버와 주고받는 값은 항상 코드 값**(`'approved'` 등)입니다.
 > 라벨을 바꿔도 API는 영향받지 않습니다.
@@ -35,6 +42,7 @@
 | `status` | `'pending' \| 'approved' \| 'rejected'` | 검토 중 / 승인 / 반려 |
 | `appliedAt` | string | 신청일, `YYYY-MM-DD` |
 | `boothNo` | number \| null | 부스 번호. **승인 상태일 때만** 값이 있음 |
+| `operatingStatus` | `'preparing' \| 'open' \| 'soldout' \| 'closed' \| null` | 당일 운영 상태: 준비 중 / 운영 중 / 품절 / 마감. **승인된 부스만** 값이 있고, 승인되는 순간 `preparing`으로 시작 |
 | `intro` | string | 운영 소개 |
 | `applicant` | `{ name, phone, email }` | 신청자 정보 |
 | `documents` | `{ id, name, url }[]` | 제출 서류 |
@@ -44,8 +52,26 @@
 규칙
 - `pending`은 "승인도 반려도 누르지 않은 상태"입니다. 같은 결정 버튼을 다시 누르면 `pending`으로
   돌아갑니다(토글).
-- `approved`를 벗어나면(취소·반려) `boothNo`는 `null`이 되어야 합니다.
+- `approved`를 벗어나면(취소·반려) `boothNo`와 `operatingStatus`는 `null`이 되어야 합니다.
 - **지도 제작의 "승인된 부스 할당" 목록은 `status === 'approved'`인 부스만** 보여줍니다.
+
+### Event (행사)
+
+사이드바 상단 카드와 대시보드가 같은 값을 씁니다. (`src/mocks/event.js`)
+
+**진행 상태는 저장하지 않습니다.** 날짜로 계산합니다: 오늘이 `startDate`보다 앞이면 *진행 예정*, `startDate`~`endDate`(종료일 당일 포함)이면 *진행 중*, `endDate` 다음 날부터는 *진행 종료*. 서버가 상태 필드를 내려준다면 이 규칙과 같은 기준이어야 합니다. (프론트는 사용자 PC의 오늘 날짜를 쓰므로, 서버 기준 시간대가 필요하면 서버 시각으로 계산해 내려주세요.)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `name` | string | 행사 이름 |
+| `startDate`, `endDate` | string | `YYYY-MM-DD` |
+| `venue` | string | 장소 |
+| `imageUrl` | string \| null | 행사 대표 이미지 (대시보드 행사 카드). 없으면 임시 그림. 지금은 브라우저 임시 `blob:` 주소 |
+| `intro` | string | 행사 소개 (줄바꿈 유지) |
+| `recruitDeadline` | string | 부스 모집 마감 `YYYY-MM-DDTHH:mm` |
+| `recruitTarget` | number | 모집 부스 수(팀) |
+| `inviteCode`, `inviteUrl` | string | 부스 운영자 초대 코드 / 링크 (부스 관리의 **초대 링크 복사**도 같은 값) |
+| `visitorUrl` | string | 방문객용 링크 (QR에 담길 주소) |
 
 ### Notice (공지)
 
@@ -101,6 +127,12 @@
 | 승인 / 반려 / 취소 | `setStatus(id, status)` | `BoothsProvider.setStatus` | `PATCH /booths/:id/status` `{ status }` |
 | 검토 메모 · 반려 사유 입력 | `editNotes(id, fields)` | `BoothsProvider.editNotes` (입력마다가 아니라 blur 때 저장 권장) | `PATCH /booths/:id/notes` `{ reviewMemo, rejectReason }` |
 | 초대 링크 복사 | `/signup/booth` 주소 조합 | `BoothManagePage.copyInvite` | `GET /invite-link` → `{ url }` |
+| 행사 정보 불러오기 | `MOCK_EVENT` | `EventProvider` 초기값 | `GET /event` → `Event` |
+| 행사 이미지 업로드 | 브라우저 임시 URL | `EventEditModal.loadImage` | `POST /event/image` (multipart) → `{ url }` (PNG/JPG/WEBP/GIF, 최대 10MB — 서버에서도 검증) |
+| 행사 정보 수정 (이름·날짜·장소·소개·이미지) | `updateEvent(fields)` | `EventProvider.updateEvent` | `PUT /event` (수정한 필드만 보내도 됨) |
+| 초대 코드·링크, 방문객 링크 | `event.inviteCode` 등 | `DashboardPage`, `BoothManagePage.copyInvite` (모두 `useEvent()`) | `GET /event` 응답에 포함 |
+| 방문객 QR | 임시 그림 | `DashboardPage.QrPlaceholder` | 서버가 QR 이미지 생성 또는 프론트 QR 라이브러리 |
+| 부스 운영 상태 변경 (운영 중/품절/마감) | 변경 화면 없음 | (추가 필요) | `PATCH /booths/:id/operating-status` |
 | 공지 목록 불러오기 | `MOCK_NOTICES` | `NoticesProvider` 초기값 | `GET /notices` → `Notice[]` |
 | 공지 작성 / 수정 / 임시 저장 | `saveNotice(id, fields, status)` | `NoticesProvider.saveNotice` (`id`가 `null`이면 생성) | `POST /notices`, `PUT /notices/:id` |
 | 게시 종료 / 다시 게시 | `closeNotice` / `reopenNotice` | `NoticesProvider.setStatus` | `PATCH /notices/:id/status` `{ status }` |
@@ -130,6 +162,10 @@
    (지금은 두 값이 연결되어 있지 않음).
 
 ## 6. 아직 화면만 있고 동작이 없는 부분
+
+- 대시보드: **모집 관리**, **운영 현황 보기**, **QR 복사** 버튼, 방문객 QR(임시 그림). **행사 정보 수정**은 화면에서 동작하지만 저장은 화면 안에서만 반영됨(새로고침하면 처음 값)
+- 대시보드의 숫자는 별도로 저장하지 않고 **부스 목록·공지 목록에서 계산**합니다 (전체 부스 = 승인된 부스, 신청 수 = 전체 신청, 운영 중/준비 중/품절/마감 = 승인된 부스의 `operatingStatus`). 백엔드도 같은 기준으로 집계하거나 목록을 그대로 내려주면 됩니다.
+- 최근 공지 = 임시 저장을 제외한 공지를 목록과 같은 순서(`sortNotices`)로 정렬한 앞 3개
 
 - 부스 관리: **+ 부스 직접 등록**, 제출 서류 **보기** 버튼
 - 공지사항: 저장·게시가 화면 안에서만 반영됨(새로고침하면 처음 상태). 알림 발송 없음

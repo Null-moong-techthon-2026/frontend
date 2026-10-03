@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
 import Select from '../components/Select'
 import {
@@ -12,6 +13,7 @@ import {
 } from '../constants/notice'
 import { useNotices } from '../context/useNotices'
 import { formatDateTime } from '../utils/date'
+import { audienceText, noticeDateText as dateText, sortNotices } from '../utils/notice'
 import { fileExtension, formatFileSize } from '../utils/file'
 import './notice.css'
 
@@ -26,27 +28,12 @@ const STATUS_CLASS = {
   [NOTICE_STATUS.DRAFT]: 'is-draft',
 }
 
-// "전체 대상" when everyone is selected, otherwise the labels in display order.
-const audienceText = (audiences) =>
-  audiences.length === AUDIENCES.length
-    ? '전체 대상'
-    : AUDIENCES.filter((a) => audiences.includes(a))
-        .map((a) => NOTICE_AUDIENCE_LABEL[a])
-        .join(' · ')
-
-const dateText = (n) =>
-  n.status === NOTICE_STATUS.DRAFT
-    ? `저장 ${formatDateTime(n.updatedAt)}`
-    : formatDateTime(n.publishedAt)
-
-const sortKey = (n) => n.publishedAt ?? n.updatedAt
-// Urgent notices that are live float to the top of the list.
-const isPinned = (n) => n.urgent && n.status === NOTICE_STATUS.PUBLISHED
-
 export default function NoticePage() {
   const { notices, saveNotice, closeNotice, reopenNotice, deleteNotice } = useNotices()
   const [selectedId, setSelectedId] = useState(1)
-  const [mode, setMode] = useState('view') // 'view' | 'edit' | 'new'
+  // The dashboard's "+ 공지 작성" opens this page straight into the composer.
+  const { state } = useLocation()
+  const [mode, setMode] = useState(state?.compose ? 'new' : 'view') // 'view' | 'edit' | 'new'
   const [form, setForm] = useState(EMPTY_FORM)
   const [fileError, setFileError] = useState('')
   const [dragging, setDragging] = useState(false)
@@ -54,10 +41,11 @@ export default function NoticePage() {
   const [audienceFilter, setAudienceFilter] = useState('all')
   const [deleteOpen, setDeleteOpen] = useState(false)
 
-  const list = notices
-    .filter((n) => n.title.includes(query.trim()))
-    .filter((n) => audienceFilter === 'all' || n.audiences.includes(audienceFilter))
-    .sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)) || sortKey(b).localeCompare(sortKey(a)))
+  const list = sortNotices(
+    notices
+      .filter((n) => n.title.includes(query.trim()))
+      .filter((n) => audienceFilter === 'all' || n.audiences.includes(audienceFilter)),
+  )
 
   const selected = notices.find((n) => n.id === selectedId) ?? null
   const editing = mode !== 'view'

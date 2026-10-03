@@ -5,6 +5,7 @@ import {
   BOOTH_STATUS_LABEL,
 } from '../constants/booth'
 import { useBooths } from '../context/useBooths'
+import { useEvent } from '../context/useEvent'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
 import Select from '../components/Select'
 import './booth-manage.css'
@@ -32,6 +33,7 @@ function StatusChip({ status }) {
 
 export default function BoothManagePage() {
   const { booths: rows, setStatus, editNotes } = useBooths()
+  const { event } = useEvent()
   const [selectedId, setSelectedId] = useState(1)
   const [tab, setTab] = useState('info')
   const [query, setQuery] = useState('')
@@ -71,7 +73,7 @@ export default function BoothManagePage() {
   const copyInvite = async () => {
     try {
       // TODO(backend): use the invite link issued by the server for this event.
-      await navigator.clipboard.writeText(`${window.location.origin}/signup/booth`)
+      await navigator.clipboard.writeText(event.inviteUrl)
     } catch {
       // Clipboard can be blocked; the button still confirms so the flow is visible.
     }

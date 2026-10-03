@@ -1,0 +1,458 @@
+/* Dashboard (organizer). Reuses the .om-app shell + variables from organizer-map.css. */
+.db-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 4px;
+}
+
+.db-body > * {
+  flex: none;
+}
+
+.db-body h2,
+.db-body h3 {
+  margin: 0;
+}
+
+/* ---------- Event card ---------- */
+.db-event {
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr) 340px;
+  align-items: center;
+  gap: 24px;
+  padding: 16px;
+  border: 1px solid var(--om-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.db-art {
+  position: relative;
+  height: 130px;
+  border-radius: 10px;
+  background: var(--om-surface);
+  overflow: hidden;
+}
+
+.db-art-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.db-art-sign {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 22px;
+  border: 1px solid var(--om-border);
+  border-radius: 4px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.db-art svg {
+  position: absolute;
+  inset: auto 0 6px;
+  width: 100%;
+}
+
+.db-event-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.db-event-title h2 {
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.db-chip {
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: var(--om-highlight);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.db-chip.is-muted {
+  background: var(--om-surface);
+  border: 1px solid var(--om-border);
+  color: var(--om-ink-soft);
+}
+
+.db-event-info p {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.db-event-info svg {
+  width: 16px;
+  height: 16px;
+  color: var(--om-ink-soft);
+}
+
+.db-event-intro {
+  align-self: stretch;
+  padding: 16px 18px;
+  border: 1px solid var(--om-border);
+  border-radius: 10px;
+}
+
+.db-event-intro h3 {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.db-event-intro p {
+  margin: 8px 0 0;
+  white-space: pre-line;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--om-ink-soft);
+}
+
+/* ---------- Recruit banner ---------- */
+.db-recruit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 22px;
+  border-radius: 12px;
+  background: var(--om-highlight);
+}
+
+.db-recruit-title h3 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.db-recruit-title span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.db-recruit dl {
+  display: contents;
+}
+
+.db-recruit dl > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-recruit dt {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.db-recruit dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+/* ---------- Summary ---------- */
+.db-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.db-section-head h3 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.db-link {
+  border: 0;
+  background: none;
+  color: var(--om-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.db-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: -4px;
+}
+
+.db-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 18px;
+  border: 1px solid var(--om-border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--om-ink-soft);
+}
+
+.db-stat strong {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 900;
+  color: var(--om-ink);
+}
+
+.db-stat.is-open {
+  background: #f1f8f5;
+}
+
+.db-stat.is-open strong,
+.db-stat.is-preparing strong {
+  color: var(--om-primary);
+}
+
+.db-stat.is-soldout strong {
+  color: #b5533c;
+}
+
+.db-stat.is-closed strong {
+  color: var(--om-ink-soft);
+}
+
+/* ---------- Bottom cards ---------- */
+.db-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.db-card {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  border: 1px solid var(--om-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.db-card h3 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.db-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.db-sub {
+  margin: 4px 0 12px;
+  font-size: 12px;
+  color: var(--om-ink-soft);
+}
+
+.db-label {
+  margin: 6px 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.db-copy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  gap: 8px;
+}
+
+.db-copy-row input,
+.db-full-input {
+  min-width: 0;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--om-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--om-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.db-outline-btn {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--om-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--om-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.db-hint {
+  margin: 10px 0 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--om-ink-soft);
+}
+
+.db-block-btn {
+  width: 100%;
+  margin-top: auto;
+  height: 40px;
+}
+
+/* notices */
+.db-notices {
+  flex: 1;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.db-notices li + li {
+  border-top: 1px solid var(--om-border);
+}
+
+.db-notices button {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  background: none;
+  color: var(--om-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.db-notice-badge {
+  padding-top: 1px;
+}
+
+.db-urgent {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: #b5533c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.db-notice-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.db-notice-main strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.db-notice-main small {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--om-ink-soft);
+}
+
+.db-empty {
+  padding: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--om-ink-soft);
+}
+
+/* visitor card */
+.db-full-input {
+  margin-bottom: 8px;
+}
+
+.db-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.db-qr-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.db-qr {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  color: var(--om-ink-soft);
+}
+
+.db-qr-row strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.db-qr-row p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--om-ink-soft);
+}
+
+@media (max-width: 1280px) {
+  .db-event {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+
+  .db-event-intro {
+    grid-column: 1 / -1;
+  }
+
+  .db-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  .db-recruit {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .db-recruit-title {
+    grid-column: 1 / -1;
+  }
+
+  .db-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .db-cards {
+    grid-template-columns: 1fr;
+  }
+}

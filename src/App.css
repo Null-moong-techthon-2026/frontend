@@ -643,13 +643,13 @@
   .screen-card:not(.landing-card) {
     max-width: none;
     width: 100%;
-    height: auto;
-    min-height: 100dvh;
+    height: 100dvh;
+    min-height: 0;
     border: none;
     border-radius: 0;
     box-shadow: none;
     background: var(--surface);
-    overflow: visible;
+    overflow: hidden;
   }
 
   .screen-card:not(.landing-card) .auth-header {
@@ -663,16 +663,26 @@
   }
 
   .screen-card:not(.landing-card) .auth-body {
-    flex: none;
+    flex: 1;
+    min-height: 0;
     align-self: center;
     width: 100%;
     max-width: 640px;
     margin: 0 auto;
-    padding: 24px 24px 64px;
+    padding: 24px;
     gap: 36px;
-    overflow: visible;
+    overflow-y: auto;
     background: transparent;
     border: none;
+  }
+
+  /* Center vertically without clipping the top when content is taller than the screen. */
+  .screen-card:not(.landing-card) .auth-body > :first-child {
+    margin-top: auto;
+  }
+
+  .screen-card:not(.landing-card) .auth-body > :last-child {
+    margin-bottom: auto;
   }
 
   .auth-title h2 {
@@ -727,5 +737,51 @@
   .modal-option,
   .modal-option-icon {
     border-radius: 12px;
+  }
+}
+
+/* ---------- Desktop screens shorter than ~900px: tighten so each page fits one screen ---------- */
+@media (min-width: 1024px) and (max-height: 900px) {
+  .screen-card:not(.landing-card) .auth-header {
+    padding: 18px 48px;
+  }
+
+  .screen-card:not(.landing-card) .auth-body {
+    gap: 20px;
+    padding: 12px 24px;
+  }
+
+  .auth-title h2 {
+    font-size: 28px;
+  }
+
+  .auth-fields {
+    gap: 14px;
+  }
+
+  .form-field-row input {
+    height: 46px;
+  }
+
+  .btn {
+    height: 50px;
+  }
+
+  .landing-logo {
+    font-size: 56px;
+  }
+
+  .landing-hero {
+    padding: 12px 0 4px;
+  }
+
+  .landing-hero-icon {
+    width: 160px;
+    height: 160px;
+  }
+
+  .landing-hero::before {
+    width: 240px;
+    height: 240px;
   }
 }

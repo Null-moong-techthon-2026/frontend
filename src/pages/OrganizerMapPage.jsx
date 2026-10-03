@@ -1,69 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
-import boothLogo from '../assets/booth-logo.png'
+import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
+import { BOOTH_STATUS } from '../constants/booth'
+import { FACILITIES, PIN_TYPE } from '../constants/map'
+import { useBooths } from '../context/useBooths'
+import pinBooth from '../assets/pins/pin-booth.svg'
+import pinToilet from '../assets/pins/pin-toilet.svg'
+import pinInfo from '../assets/pins/pin-info.svg'
+import pinMedical from '../assets/pins/pin-medical.svg'
+import pinEtc from '../assets/pins/pin-etc.svg'
 import './organizer-map.css'
 
-const NAV = [
-  { key: 'dashboard', label: '대시보드', icon: 'grid' },
-  { key: 'map', label: '지도 제작', icon: 'map', active: true },
-  { key: 'booths', label: '부스 관리', icon: 'store' },
-  { key: 'recruit', label: '부스 모집', icon: 'megaphone' },
-  { key: 'live', label: '실시간 운영 현황', icon: 'chart' },
-  { key: 'notice', label: '공지사항', icon: 'bell' },
-  { key: 'settle', label: '정산 관리', icon: 'won', badge: '준비중' },
-]
-
-const FACILITIES = [
-  { key: 'booth', label: '부스', icon: 'store' },
-  { key: 'toilet', label: '화장실', icon: 'user' },
-  { key: 'info', label: '안내소', icon: 'info' },
-  { key: 'medical', label: '의무실', icon: 'plus-cross' },
-  { key: 'etc', label: '기타 시설', icon: 'grid' },
-]
-
-const BOOTHS = [
-  { n: 9, name: '알빨 떡볶이', category: '식사', assigned: false },
-  { n: 10, name: '오늘의 커피', category: '음료', assigned: false },
-  { n: 11, name: '컬러스 포토', category: '체험', assigned: false },
-  { n: 12, name: '평온상점', category: '굿즈', assigned: false },
-]
-
-function Icon({ name }) {
-  const paths = {
-    grid: <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />,
-    map: <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14" />,
-    store: <path d="M4 9 5.5 4h13L20 9M4 9v11h16V9M4 9h16M9 20v-6h6v6" />,
-    megaphone: <path d="M3 10v4h4l9 5V5L7 10H3Zm16-1a3 3 0 0 1 0 6" />,
-    chart: <path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3" />,
-    bell: <path d="M6 16v-5a6 6 0 1 1 12 0v5l2 2H4l2-2Zm4 4h4" />,
-    won: <path d="M4 8h16M4 12h16M7 4l3 16 2-10 2 10 3-16" />,
-    user: <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0" />,
-    info: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-11v5m0-8v.5" />,
-    'plus-cross': <path d="M9 4h6v5h5v6h-5v5H9v-5H4V9h5Z" />,
-    upload: <path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4" />,
-    image: <path d="M4 5h16v14H4zM4 16l5-5 4 4 2-2 5 5M15 9h.01" />,
-    plus: <path d="M12 5v14M5 12h14" />,
-    search: <path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5-2 4 4" />,
-    chevron: <path d="m9 6 6 6-6 6" />,
-    trash: <path d="M4 7h16M9 7V4h6v3m-7 0 1 13h8l1-13" />,
-    pin: <path d="M12 21s-6-5.6-6-11a6 6 0 1 1 12 0c0 5.4-6 11-6 11Z" />,
-    cursor: <path d="M5 3l14 8-6 1.5L10 20 5 3Z" />,
-    hand: <path d="M8 13V5a1.5 1.5 0 0 1 3 0v5m0-3a1.5 1.5 0 0 1 3 0v3m0-2a1.5 1.5 0 0 1 3 0v4a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3a1.5 1.5 0 0 1 2.5-1.6L8 13" />,
-  }
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {paths[name]}
-    </svg>
-  )
+const PIN_IMAGES = {
+  [PIN_TYPE.BOOTH]: pinBooth,
+  [PIN_TYPE.TOILET]: pinToilet,
+  [PIN_TYPE.INFO]: pinInfo,
+  [PIN_TYPE.MEDICAL]: pinMedical,
+  [PIN_TYPE.ETC]: pinEtc,
 }
 
 const MIN_ZOOM = 0.5
@@ -80,19 +32,63 @@ const clampPan = (p, z) => {
   return { x: clamp(p.x), y: clamp(p.y) }
 }
 
+// Number field that only commits (clamped) on blur/Enter, so typing a multi-digit value isn't fought.
+function CoordInput({ label, value, max, onCommit }) {
+  const [draft, setDraft] = useState(null)
+  const commit = () => {
+    const n = Number(draft)
+    if (draft !== null && draft.trim() !== '' && Number.isFinite(n)) {
+      onCommit(Math.min(max, Math.max(0, Math.round(n))))
+    }
+    setDraft(null)
+  }
+  return (
+    <label className="om-coord">
+      <span>{label}</span>
+      <input
+        className="om-input"
+        type="number"
+        min={0}
+        max={max}
+        value={draft ?? value}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      />
+    </label>
+  )
+}
+
 export default function OrganizerMapPage() {
-  const [selected, setSelected] = useState(9)
+  const [selected, setSelected] = useState(null)
   const [tab, setTab] = useState('unplaced')
-  const [facility, setFacility] = useState('booth')
+  const [facility, setFacility] = useState(PIN_TYPE.BOOTH)
   const [image, setImage] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [tool, setTool] = useState('cursor')
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pinConfirmOpen, setPinConfirmOpen] = useState(false)
+  const pinDragRef = useRef(null)
+  const suppressClickRef = useRef(false)
+  const downWasActiveRef = useRef(false)
+  const nextPinId = useRef(1)
+  const [placing, setPlacing] = useState(false)
+  // Pin coords are in the uploaded image's own pixel space (0..width, 0..height), not screen px.
+  // TODO(backend): initialise image + pins from the saved map (GET /map); see BACKEND_INTEGRATION.md.
+  const [pins, setPins] = useState([])
+  const [activePinId, setActivePinId] = useState(null)
+  const stageRef = useRef(null)
   const viewportRef = useRef(null)
   const dragRef = useRef(null)
-  const visibleBooths = tab === 'unplaced' ? BOOTHS : BOOTHS.filter((b) => b.assigned)
+  // A booth counts as placed once some pin carries its number.
+  // Only approved booths (from 부스 관리) can be placed on the map.
+  const BOOTHS = useBooths().booths.filter((b) => b.status === BOOTH_STATUS.APPROVED)
+  const isPlaced = (id) => pins.some((p) => p.boothId === id)
+  const visibleBooths = tab === 'unplaced' ? BOOTHS.filter((b) => !isPlaced(b.id)) : BOOTHS
+  const totalCount = BOOTHS.length
+  const placedCount = BOOTHS.filter((b) => isPlaced(b.id)).length
 
   const zoomTo = (nz) => {
     const z = clampZoom(nz)
@@ -135,12 +131,15 @@ export default function OrganizerMapPage() {
     dragRef.current = null
   }
 
+  // TODO(backend): upload the file and keep the returned server URL instead of a blob: URL.
   const loadFile = (file) => {
     if (!file || !file.type.startsWith('image/')) return
     setImage((prev) => {
       if (prev) URL.revokeObjectURL(prev.url)
-      return { url: URL.createObjectURL(file), name: file.name }
+      return { url: URL.createObjectURL(file), name: file.name, width: 0, height: 0 }
     })
+    setPins([])
+    setPlacing(false)
     setZoom(1)
     setPan({ x: 0, y: 0 })
   }
@@ -158,66 +157,145 @@ export default function OrganizerMapPage() {
     })
     setZoom(1)
     setPan({ x: 0, y: 0 })
+    setPins([])
+    setPlacing(false)
+  }
+
+  // Fraction of the square stage that the object-fit:contain image occupies.
+  const containRect = () => {
+    const { width, height } = image
+    if (!width || !height) return null
+    const w = width >= height ? 1 : width / height
+    const h = height >= width ? 1 : height / width
+    return { w, h, ox: (1 - w) / 2, oy: (1 - h) / 2 }
+  }
+
+  const activePin = pins.find((p) => p.id === activePinId) ?? null
+
+  const removePin = (id) => {
+    setPins((prev) => prev.filter((p) => p.id !== id))
+    setActivePinId(null)
+    setSelected(null)
+  }
+
+  const assignBooth = () => {
+    const booth = BOOTHS.find((b) => b.id === selected)
+    if (!activePin || activePin.type !== PIN_TYPE.BOOTH || !booth || isPlaced(booth.id)) return
+    setPins((prev) =>
+      prev.map((p) => (p.id === activePin.id ? { ...p, boothId: booth.id, name: booth.name } : p)),
+    )
+  }
+
+  // Screen point -> image pixel coords (unclamped). The stage's bounding rect already
+  // includes pan/zoom, so this maps back to stage space.
+  const toImagePoint = (clientX, clientY) => {
+    const box = containRect()
+    if (!box) return null
+    const r = stageRef.current.getBoundingClientRect()
+    const u = ((clientX - r.left) / r.width - box.ox) / box.w
+    const v = ((clientY - r.top) / r.height - box.oy) / box.h
+    return { x: u * image.width, y: v * image.height }
+  }
+
+  const movePin = (id, x, y) => {
+    const cx = Math.min(image.width, Math.max(0, Math.round(x)))
+    const cy = Math.min(image.height, Math.max(0, Math.round(y)))
+    setPins((prev) => prev.map((p) => (p.id === id ? { ...p, x: cx, y: cy } : p)))
+  }
+
+  const handlePinPointerDown = (e, pin) => {
+    if (tool !== 'cursor' || e.button !== 0) return
+    const pt = toImagePoint(e.clientX, e.clientY)
+    if (!pt) return
+    pinDragRef.current = {
+      id: pin.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      dx: pin.x - pt.x,
+      dy: pin.y - pt.y,
+      moved: false,
+    }
+    downWasActiveRef.current = activePinId === pin.id
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setActivePinId(pin.id)
+    setSelected(pin.boothId)
+  }
+
+  const handlePinPointerMove = (e) => {
+    const d = pinDragRef.current
+    if (!d) return
+    if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4) return
+    d.moved = true
+    const pt = toImagePoint(e.clientX, e.clientY)
+    if (pt) movePin(d.id, pt.x + d.dx, pt.y + d.dy)
+  }
+
+  const handlePinPointerUp = () => {
+    const d = pinDragRef.current
+    pinDragRef.current = null
+    if (d?.moved) {
+      suppressClickRef.current = true
+      setTimeout(() => {
+        suppressClickRef.current = false
+      }, 0)
+    }
+  }
+
+  const handlePinClick = (e) => {
+    e.stopPropagation()
+    if (suppressClickRef.current || tool !== 'cursor') return
+    // Pointer-down already selected it; a plain click on an already-selected pin deselects.
+    if (downWasActiveRef.current) {
+      setActivePinId(null)
+      setSelected(null)
+    }
+  }
+
+  const handleMapClick = (e) => {
+    if (suppressClickRef.current) return
+    setActivePinId(null)
+    setSelected(null)
+    if (!image || !placing || tool !== 'cursor') return
+    const pt = toImagePoint(e.clientX, e.clientY)
+    if (!pt) return
+    const u = pt.x / image.width
+    const v = pt.y / image.height
+    if (u < 0 || u > 1 || v < 0 || v > 1) return
+    const id = nextPinId.current++
+    setActivePinId(id)
+    setSelected(null)
+    setPins((prev) => [
+      ...prev,
+      {
+        id,
+        type: facility,
+        name: '',
+        boothId: null,
+        x: Math.round(u * image.width),
+        y: Math.round(v * image.height),
+      },
+    ])
+    setPlacing(false)
   }
 
   return (
-    <div className="om-app">
-      <aside className="om-sidebar">
-        <div className="om-brand">
-          <img src={boothLogo} alt="" className="om-brand-logo" />
-          <span className="om-brand-name">부스럭</span>
-        </div>
-
-        <div className="om-event-card">
-          <p className="om-event-name">비룡제 2026</p>
-          <p className="om-event-date">2026.09.22 ~ 09.24</p>
-          <span className="om-badge">준비 중</span>
-        </div>
-
-        <nav className="om-nav">
-          {NAV.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={`om-nav-item${item.active ? ' is-active' : ''}`}
-            >
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-              {item.badge && <span className="om-nav-badge">{item.badge}</span>}
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="om-main">
-        <header className="om-topbar">
-          <p className="om-crumb">행사 운영 / 지도 제작</p>
-          <div className="om-topbar-right">
-            <button type="button" className="om-icon-btn" aria-label="알림">
-              <Icon name="bell" />
-            </button>
-            <button type="button" className="om-user">
-              <span className="om-avatar" />
-              운영자님
-              <Icon name="chevron" />
-            </button>
-          </div>
-        </header>
-
-        <div className="om-page-head">
-          <div>
-            <h1>지도 제작</h1>
-            <p>평면도 위에 핀을 만들고, 승인된 부스를 배치하세요.</p>
-          </div>
-          <div className="om-page-actions">
-            <button type="button" className="om-btn om-btn-outline">미리보기</button>
-            <button type="button" className="om-btn om-btn-primary">저장하기</button>
-          </div>
-        </div>
-
+    <OrganizerLayout
+      active="map"
+      crumb="지도 제작"
+      title="지도 제작"
+      subtitle="평면도 위에 핀을 만들고, 승인된 부스를 배치하세요."
+      actions={
+        <>
+          <button type="button" className="om-btn om-btn-outline">미리보기</button>
+          {/* TODO(backend): save { floorplan: image, pins } (PUT /map). */}
+          <button type="button" className="om-btn om-btn-primary">저장하기</button>
+        </>
+      }
+    >
         <div className="om-grid">
           <section className="om-panel">
             <h2 className="om-panel-title">평면도</h2>
+            {!image && (
             <label
               className={`om-dropzone${dragging ? ' is-dragging' : ''}`}
               onDragOver={(e) => {
@@ -238,6 +316,7 @@ export default function OrganizerMapPage() {
               <p className="om-dropzone-sub">이미지를 끌어서 놓거나 클릭해서 선택하세요.</p>
               <p className="om-dropzone-sub">PNG, JPG</p>
             </label>
+            )}
             {image && (
               <div className="om-file">
                 <Icon name="image" />
@@ -246,14 +325,23 @@ export default function OrganizerMapPage() {
             )}
 
             <h2 className="om-panel-title om-mt">핀 생성하기</h2>
-            <p className="om-panel-sub">생성할 핀을 선택해 지도에 추가하세요.</p>
+            <p className="om-panel-sub">
+              {!image
+                ? '먼저 평면도를 업로드하세요.'
+                : placing
+                  ? '지도에서 핀을 놓을 위치를 클릭하세요.'
+                  : '생성할 핀을 선택해 지도에 추가하세요.'}
+            </p>
             <ul className="om-facility-list">
               {FACILITIES.map((f) => (
                 <li key={f.key}>
                   <button
                     type="button"
-                    className={`om-facility${facility === f.key ? ' is-selected' : ''}`}
-                    onClick={() => setFacility(f.key)}
+                    className={`om-facility${placing && facility === f.key ? ' is-selected' : ''}`}
+                    onClick={() => {
+                      setFacility(f.key)
+                      setPlacing(image ? !(placing && facility === f.key) : false)
+                    }}
                   >
                     <Icon name={f.icon} />
                     <span>{f.label}</span>
@@ -299,21 +387,60 @@ export default function OrganizerMapPage() {
               {image ? (
                 <div
                   ref={viewportRef}
-                  className={`om-map-viewport${tool === 'hand' && zoom > 1 ? ' is-pannable' : ''}`}
+                  className={`om-map-viewport${tool === 'hand' && zoom > 1 ? ' is-pannable' : ''}${placing && tool === 'cursor' ? ' is-placing' : ''}`}
+                  onClick={handleMapClick}
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={endDrag}
                   onPointerCancel={endDrag}
                 >
-                  <img
-                    src={image.url}
-                    alt="행사장 평면도"
-                    className="om-map-image"
+                  <div
+                    ref={stageRef}
+                    className="om-map-stage"
                     style={{
                       transform: `translate(${pan.x}%, ${pan.y}%) scale(${zoom})`,
                     }}
-                    draggable={false}
-                  />
+                  >
+                    <img
+                      src={image.url}
+                      alt="행사장 평면도"
+                      className="om-map-image"
+                      draggable={false}
+                      onLoad={(e) => {
+                        // Read before the updater runs: currentTarget is null by then.
+                        const { naturalWidth: width, naturalHeight: height } = e.currentTarget
+                        setImage((prev) => prev && { ...prev, width, height })
+                      }}
+                    />
+                    {pins.map((pin) => {
+                      const box = containRect()
+                      if (!box) return null
+                      return (
+                        <span
+                          key={pin.id}
+                          className={`om-pin${activePinId === pin.id ? ' is-active' : ''}`}
+                          style={{
+                            left: `${(box.ox + (pin.x / image.width) * box.w) * 100}%`,
+                            top: `${(box.oy + (pin.y / image.height) * box.h) * 100}%`,
+                            transform: `translate(-50%, -100%) scale(${1 / zoom})`,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="om-pin-btn"
+                            aria-label={`${pin.name}번 핀`}
+                            onPointerDown={(e) => handlePinPointerDown(e, pin)}
+                            onPointerMove={handlePinPointerMove}
+                            onPointerUp={handlePinPointerUp}
+                            onPointerCancel={handlePinPointerUp}
+                            onClick={handlePinClick}
+                          >
+                            <img src={PIN_IMAGES[pin.type]} alt="" draggable={false} />
+                          </button>
+                        </span>
+                      )
+                    })}
+                  </div>
                 </div>
               ) : (
                 <div className="om-map-empty" />
@@ -353,6 +480,39 @@ export default function OrganizerMapPage() {
             </div>
           </section>
 
+          {pinConfirmOpen && activePin && (
+            <div className="om-confirm-overlay" onClick={() => setPinConfirmOpen(false)}>
+              <div
+                className="om-confirm"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="om-pin-confirm-title"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 id="om-pin-confirm-title">핀을 삭제할까요?</h2>
+                <p>
+                  {activePin.name ? `'${activePin.name}' 핀이` : '선택한 핀이'} 지도에서 삭제되며,
+                  할당된 부스는 미배치로 돌아가요.
+                </p>
+                <div className="om-confirm-actions">
+                  <button type="button" className="om-btn om-btn-outline" onClick={() => setPinConfirmOpen(false)}>
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="om-btn om-btn-danger"
+                    onClick={() => {
+                      removePin(activePin.id)
+                      setPinConfirmOpen(false)
+                    }}
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {confirmOpen && (
             <div className="om-confirm-overlay" onClick={() => setConfirmOpen(false)}>
               <div
@@ -387,18 +547,43 @@ export default function OrganizerMapPage() {
             <div className="om-panel-head">
               <h2 className="om-panel-title">선택한 핀</h2>
               <div className="om-tools">
-                <span className="om-tag">부스 핀</span>
-                <button type="button" className="om-chip">삭제하기</button>
-                <button type="button" className="om-chip">핀 등록</button>
+                {activePin && (
+                  <>
+                    <span className="om-tag">
+                      {FACILITIES.find((f) => f.key === activePin.type).label} 핀
+                    </span>
+                    <button type="button" className="om-chip" onClick={() => setPinConfirmOpen(true)}>
+                      삭제하기
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
             <label className="om-label">핀 이름</label>
-            <input className="om-input" value={String(selected)} readOnly />
+            <input className="om-input om-input-lg" value={activePin ? activePin.name : ''} readOnly />
+
+            <label className="om-label om-mt-sm">핀 좌표 (이미지 픽셀)</label>
+            <div className="om-coords">
+              <CoordInput
+                label="X"
+                value={activePin ? activePin.x : ''}
+                max={image?.width ?? 0}
+                onCommit={(x) => movePin(activePin.id, x, activePin.y)}
+              />
+              <CoordInput
+                label="Y"
+                value={activePin ? activePin.y : ''}
+                max={image?.height ?? 0}
+                onCommit={(y) => movePin(activePin.id, activePin.x, y)}
+              />
+            </div>
 
             <div className="om-row-between om-mt-sm">
               <span className="om-label">할당 상태</span>
-              <span className="om-pill-highlight">미할당</span>
+              {activePin && (
+                <span className="om-pill-highlight">{activePin.boothId ? '할당 완료' : '미할당'}</span>
+              )}
             </div>
 
             <h2 className="om-panel-title om-mt">승인된 부스 할당</h2>
@@ -407,15 +592,15 @@ export default function OrganizerMapPage() {
             <div className="om-stats">
               <div className="om-stat">
                 <span>총원</span>
-                <strong>12</strong>
+                <strong>{totalCount}</strong>
               </div>
               <div className="om-stat">
                 <span>배치 완료</span>
-                <strong>8</strong>
+                <strong>{placedCount}</strong>
               </div>
               <div className="om-stat is-highlight">
                 <span>미배치</span>
-                <strong>4</strong>
+                <strong>{totalCount - placedCount}</strong>
               </div>
             </div>
 
@@ -443,29 +628,36 @@ export default function OrganizerMapPage() {
 
             <ul className="om-booth-list">
               {visibleBooths.map((b) => (
-                <li key={b.n}>
+                <li key={b.id}>
                   <button
                     type="button"
-                    className={`om-booth${selected === b.n ? ' is-selected' : ''}`}
-                    onClick={() => setSelected(b.n)}
+                    className={`om-booth${selected === b.id ? ' is-selected' : ''}`}
+                    disabled={isPlaced(b.id) && activePin?.boothId !== b.id}
+                    onClick={() => setSelected(b.id)}
                   >
-                    <span className={`om-radio${selected === b.n ? ' is-on' : ''}`} />
-                    <span className="om-booth-no">{b.n}</span>
+                    <span className={`om-radio${selected === b.id ? ' is-on' : ''}`} />
+                    <span className="om-booth-no">{b.id}</span>
                     <span className="om-booth-name">{b.name}</span>
                     <span className="om-booth-cat">{b.category}</span>
-                    <span className="om-tag-fill">미배치</span>
+                    <span className="om-tag-fill">{isPlaced(b.id) ? '배치 완료' : '미배치'}</span>
                   </button>
                 </li>
               ))}
             </ul>
 
             <p className="om-note">선택한 부스가 지도에 배치돼요.</p>
-            <button type="button" className="om-btn om-btn-primary om-btn-block">
+            <button
+              type="button"
+              className="om-btn om-btn-primary om-btn-block"
+              disabled={
+                !activePin || activePin.type !== PIN_TYPE.BOOTH || selected === null || isPlaced(selected)
+              }
+              onClick={assignBooth}
+            >
               부스 할당하기
             </button>
           </section>
         </div>
-      </main>
-    </div>
+    </OrganizerLayout>
   )
 }

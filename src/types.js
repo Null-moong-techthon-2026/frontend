@@ -1,0 +1,38 @@
+// Data models shared between the UI and (future) backend. JSDoc only — no runtime code.
+// Full field notes: BACKEND_INTEGRATION.md
+
+/**
+ * @typedef {'pending' | 'approved' | 'rejected'} BoothStatus   see BOOTH_STATUS
+ * @typedef {'food' | 'drink' | 'experience' | 'goods'} BoothCategory   see BOOTH_CATEGORY
+ *
+ * @typedef {Object} Booth                    one booth application
+ * @property {number} id                      unique booth id (pins reference it as boothId)
+ * @property {string} name
+ * @property {BoothCategory} category
+ * @property {BoothStatus} status
+ * @property {string} appliedAt               ISO date, YYYY-MM-DD
+ * @property {number | null} boothNo          booth number, only while approved
+ * @property {string} intro                   운영 소개
+ * @property {{ name: string, phone: string, email: string }} applicant
+ * @property {{ id: string, name: string, url: string | null }[]} documents
+ * @property {string} reviewMemo              organizer-only
+ * @property {string} rejectReason            visible to organizer and booth operator
+ *
+ * @typedef {'booth' | 'toilet' | 'info' | 'medical' | 'etc'} PinType   see PIN_TYPE
+ *
+ * @typedef {Object} Pin                      one pin on the floor plan
+ * @property {number} id
+ * @property {PinType} type
+ * @property {string} name                    booth name once assigned, otherwise ''
+ * @property {number | null} boothId          Booth.id this pin is assigned to
+ * @property {number} x                       pixels in the ORIGINAL image (0..floorplan.width)
+ * @property {number} y                       pixels in the ORIGINAL image (0..floorplan.height)
+ *
+ * @typedef {Object} Floorplan                uploaded floor-plan image
+ * @property {string} url
+ * @property {string} name
+ * @property {number} width                   natural pixel width
+ * @property {number} height                  natural pixel height
+ */
+
+export {}

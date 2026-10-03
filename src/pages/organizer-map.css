@@ -15,7 +15,7 @@
 
 .om-sidebar {
   flex: none;
-  width: 232px;
+  width: 260px;
   padding: 22px 16px;
   display: flex;
   flex-direction: column;
@@ -113,23 +113,31 @@
 }
 
 .om-main {
+  --om-px: 32px;
+  --om-pt: 18px;
   flex: 1;
   min-width: 0;
-  padding: 18px 32px 28px;
+  padding: var(--om-pt) var(--om-px) 28px;
   display: flex;
   flex-direction: column;
 }
 
+/* White bar that bleeds to the edges of the main area, like the sidebar's brand row. */
 .om-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  height: 64px;
+  margin: calc(-1 * var(--om-pt)) calc(-1 * var(--om-px)) 18px;
+  padding: 0 var(--om-px);
+  background: #fff;
+  border-bottom: 1px solid var(--om-border);
 }
 
 .om-crumb {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--om-ink-soft);
 }
 
@@ -146,9 +154,9 @@
   gap: 8px;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid var(--om-border);
+  border: 0;
   border-radius: 10px;
-  background: #fff;
+  background: transparent;
   color: var(--om-ink);
   font: inherit;
   font-size: 13px;
@@ -511,13 +519,48 @@
   cursor: grabbing;
 }
 
+.om-map-viewport.is-placing {
+  cursor: crosshair;
+}
+
+.om-map-stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+}
+
+.om-pin {
+  position: absolute;
+  display: block;
+  line-height: 0;
+  transform-origin: 50% 100%;
+}
+
+.om-pin.is-active {
+  z-index: 2;
+}
+
+.om-pin-btn {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.om-pin-btn img {
+  display: block;
+  width: 26px;
+  height: 32px;
+}
+
 .om-map-image {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  transform-origin: center;
   user-select: none;
   pointer-events: none;
 }
@@ -800,5 +843,196 @@
   .om-grid {
     grid-template-columns: 1fr;
     min-height: 0;
+  }
+}
+
+.om-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.om-booth:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Desktop: fit one screen (no page scroll); panels scroll inside ---------- */
+@media (min-width: 1081px) {
+  .om-app {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .om-sidebar {
+    overflow-y: auto;
+  }
+
+  .om-main {
+    min-height: 0;
+    overflow: hidden;
+    --om-px: 28px;
+    --om-pt: 0px;
+    padding-bottom: 18px;
+  }
+
+  .om-topbar {
+    margin-bottom: 14px;
+  }
+
+  .om-grid {
+    min-height: 0;
+  }
+
+  .om-panel {
+    overflow-y: auto;
+  }
+
+  .om-panel-map {
+    overflow: hidden;
+  }
+
+  .om-map-wrap {
+    min-height: 0;
+    container-type: size;
+    justify-content: center;
+  }
+
+  /* Square stage that is as large as the available box allows. */
+  .om-map-viewport {
+    width: min(100cqw, 100cqh);
+    height: min(100cqw, 100cqh);
+    aspect-ratio: auto;
+    align-self: center;
+  }
+}
+
+@media (min-width: 1081px) and (max-height: 900px) {
+  .om-brand {
+    margin-bottom: 0;
+  }
+
+  .om-sidebar {
+    gap: 12px;
+    padding: 16px 14px;
+  }
+}
+
+.om-coords {
+  display: flex;
+  gap: 8px;
+}
+
+.om-coord {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--om-ink-soft);
+}
+
+.om-coord .om-input {
+  min-width: 0;
+}
+
+.om-pin-btn {
+  touch-action: none;
+}
+
+/* Booth list takes the leftover height (min ~3 rows) and scrolls inside; the button stays pinned below it. */
+.om-booth-list {
+  flex: 1 1 0;
+  min-height: 120px;
+  overflow-y: auto;
+}
+
+@media (min-width: 1081px) {
+  .om-grid {
+    grid-template-columns: 240px minmax(0, 1fr) 340px;
+  }
+}
+
+@media (min-width: 1081px) and (max-height: 900px) {
+  .om-panel {
+    padding: 14px;
+  }
+
+  .om-stats {
+    gap: 6px;
+  }
+
+  .om-stat {
+    padding: 8px 10px;
+  }
+}
+
+/* Larger primary controls in the right panel. */
+.om-input-lg {
+  height: 56px;
+  padding: 0 18px;
+  font-size: 17px;
+  font-weight: 800;
+  border-radius: 14px;
+}
+
+.om-btn-block {
+  flex: none;
+  height: 48px;
+  margin-top: 12px;
+  font-size: 15px;
+  border-radius: 12px;
+}
+
+.om-note {
+  flex: none;
+}
+
+/* Short desktop screens: compact the right panel so the list and the assign button both stay on screen. */
+@media (min-width: 1081px) and (max-height: 860px) {
+  .om-input-lg {
+    height: 44px;
+    font-size: 15px;
+  }
+
+  .om-panel-sub,
+  .om-note {
+    display: none;
+  }
+
+  .om-stat {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .om-btn-block {
+    height: 44px;
+    margin-top: 10px;
+  }
+}
+
+/* Only the booth list gives up height; everything else keeps its size. */
+.om-panel > :not(.om-booth-list) {
+  flex-shrink: 0;
+}
+
+@media (min-width: 1081px) and (max-height: 860px) {
+  .om-search {
+    display: none;
+  }
+
+  .om-booth-list {
+    min-height: 100px;
+  }
+}
+
+@media (min-width: 1081px) and (max-height: 760px) {
+  .om-page-head p {
+    display: none;
+  }
+
+  .om-page-head {
+    margin-bottom: 10px;
   }
 }

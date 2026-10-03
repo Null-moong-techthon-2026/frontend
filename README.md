@@ -1,3 +1,5 @@
+> 백엔드 연동 시 데이터 모델·변수·연결 위치는 [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md)를 참고하세요.
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

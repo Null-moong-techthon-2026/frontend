@@ -1,18 +1,62 @@
+# 부스럭 (moong-techtoon) 프론트엔드
+
+축제 주최자가 행사 지도를 만들고 부스 신청을 관리하며, 부스 운영자가 신청·참여하는 서비스의
+프론트엔드입니다. React + Vite로 만들었고, **백엔드는 아직 없이 가짜 데이터로 동작**합니다.
+
 > 백엔드 연동 시 데이터 모델·변수·연결 위치는 [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md)를 참고하세요.
 
-# React + Vite
+## 실행 방법
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+```bash
+npm install      # 처음 한 번
+npm run dev      # 개발 서버 (기본 http://localhost:5173)
+npm run build    # 배포용 빌드 (dist/)
+npm run preview  # 빌드 결과 미리보기
+npm run lint     # 코드 검사
+```
 
-Currently, two official plugins are available:
+## 화면 / 경로
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| 경로 | 화면 |
+|---|---|
+| `/` | 랜딩 |
+| `/login` | 로그인 |
+| `/signup` | 로그인 + 회원가입 유형 선택 |
+| `/signup/organizer` | 축제 주최자 회원가입 |
+| `/signup/booth` | 부스 운영자 회원가입 |
+| `/home` | 메인 (준비 중) |
+| `/organizer/map` | 주최자 · 지도 제작 |
+| `/organizer/booths` | 주최자 · 부스 관리 |
 
-## React Compiler
+### 지도 제작 (`/organizer/map`)
+- 평면도 이미지 업로드 · 삭제, 확대/축소 · 이동
+- 핀 종류(부스·화장실·안내소·의무실·기타 시설)를 골라 지도를 클릭하면 핀이 찍힘
+- 핀 드래그 이동, 좌표(X, Y) 직접 입력, 삭제(확인 창)
+- 핀 좌표는 **원본 이미지 픽셀 기준**으로 저장됨
+- 승인된 부스를 선택한 핀에 할당
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 부스 관리 (`/organizer/booths`)
+- 신청 목록: 부스명 검색, 카테고리·상태 필터, 정렬, 페이지 이동
+- 신청 상세: 신청 정보 · 제출 서류, 검토 메모, 반려 사유
+- 승인하기 / 반려하기: 같은 버튼을 다시 누르면 취소되어 **검토 중**으로 돌아감
+- 승인된 부스만 지도 제작에서 할당할 수 있음
 
-## Expanding the ESLint configuration
+## 폴더 구조
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```
+src/
+├─ pages/        화면 (랜딩, 로그인, 회원가입, 지도 제작, 부스 관리)
+├─ components/   공통 컴포넌트 (OrganizerLayout 등)
+├─ constants/    상태·카테고리·핀 종류 코드와 한글 라벨
+├─ context/      부스 목록 저장소 (BoothsProvider, useBooths)
+├─ mocks/        가짜 데이터 (백엔드 연동 시 삭제)
+├─ assets/       이미지, 핀 아이콘
+├─ types.js      Booth, Pin, Floorplan 모델 정의
+└─ App.jsx       라우팅
+```
+
+## 참고
+- 화면 레이아웃은 데스크톱(가로 1081px 이상)에서 한 화면에 맞도록 만들어져 있고, 휴대폰 규격은
+  별도로 맞추지 않았습니다.
+- 새로고침하면 부스 목록과 지도(평면도·핀)는 처음 상태로 돌아갑니다. 저장 기능은 백엔드 연동 후
+  구현됩니다.

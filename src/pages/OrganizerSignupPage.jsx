@@ -26,7 +26,6 @@ export default function OrganizerSignupPage() {
           <FormField label="전화번호" placeholder="010-0000-0000" action="인증 요청" />
           <FormField label="인증번호" placeholder="인증번호를 입력해 주세요" action="인증 확인" />
           <FormField label="이메일 (선택)" type="email" placeholder="example@email.com" autoComplete="email" />
-          <FormField label="운영 기관 (선택)" placeholder="예: ○○대학교 총학생회" />
         </div>
 
         <button type="button" className="btn btn-primary">

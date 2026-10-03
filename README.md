@@ -27,6 +27,7 @@ npm run lint     # 코드 검사
 | `/home` | 메인 (준비 중) |
 | `/organizer/map` | 주최자 · 지도 제작 |
 | `/organizer/booths` | 주최자 · 부스 관리 |
+| `/organizer/notices` | 주최자 · 공지사항 |
 
 ### 지도 제작 (`/organizer/map`)
 - 평면도 이미지 업로드 · 삭제, 확대/축소 · 이동
@@ -41,17 +42,25 @@ npm run lint     # 코드 검사
 - 승인하기 / 반려하기: 같은 버튼을 다시 누르면 취소되어 **검토 중**으로 돌아감
 - 승인된 부스만 지도 제작에서 할당할 수 있음
 
+### 공지사항 (`/organizer/notices`)
+- 왼쪽 공지 목록: 제목 검색, 대상 필터, 게시 상태 표시, 긴급 공지는 목록 맨 위
+- 오른쪽에서 먼저 **열람**하고, `수정하기` 버튼을 눌러야 수정 화면으로 전환
+- 새 공지 작성: 제목 · 본문 · 파일 첨부(이미지·PDF·한글·Word·PPT·Excel 등, 파일당 10MB, 최대 5개) · 공지 대상 · 긴급 공지
+- 임시 저장 / 게시하기 / 수정 저장 / 게시 종료 / 다시 게시 / 삭제(확인 창)
+- 저장·게시는 화면 안에서만 반영됨 (백엔드 연동 후 실제 저장)
+
 ## 폴더 구조
 
 ```
 src/
-├─ pages/        화면 (랜딩, 로그인, 회원가입, 지도 제작, 부스 관리)
+├─ pages/        화면 (랜딩, 로그인, 회원가입, 지도 제작, 부스 관리, 공지사항)
 ├─ components/   공통 컴포넌트 (OrganizerLayout 등)
 ├─ constants/    상태·카테고리·핀 종류 코드와 한글 라벨
-├─ context/      부스 목록 저장소 (BoothsProvider, useBooths)
+├─ context/      부스·공지 목록 저장소 (BoothsProvider, NoticesProvider)
+├─ utils/        날짜 포맷 등 공통 함수
 ├─ mocks/        가짜 데이터 (백엔드 연동 시 삭제)
 ├─ assets/       이미지, 핀 아이콘
-├─ types.js      Booth, Pin, Floorplan 모델 정의
+├─ types.js      Booth, Notice, Pin, Floorplan 모델 정의
 └─ App.jsx       라우팅
 ```
 

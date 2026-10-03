@@ -8,7 +8,7 @@ const NAV = [
   { key: 'booths', label: '부스 관리', icon: 'store', to: '/organizer/booths' },
   { key: 'recruit', label: '부스 모집', icon: 'megaphone' },
   { key: 'live', label: '실시간 운영 현황', icon: 'chart' },
-  { key: 'notice', label: '공지사항', icon: 'bell' },
+  { key: 'notice', label: '공지사항', icon: 'bell', to: '/organizer/notices' },
   { key: 'settle', label: '정산 관리', icon: 'won', badge: '준비중' },
 ]
 

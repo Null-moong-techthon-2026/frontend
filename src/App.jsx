@@ -6,7 +6,9 @@ import BoothSignupPage from './pages/BoothSignupPage'
 import PlaceholderPage from './pages/PlaceholderPage'
 import OrganizerMapPage from './pages/OrganizerMapPage'
 import BoothManagePage from './pages/BoothManagePage'
+import NoticePage from './pages/NoticePage'
 import BoothsProvider from './context/BoothsProvider'
+import NoticesProvider from './context/NoticesProvider'
 import './App.css'
 
 // 5 auth wireframes + routing between them:
@@ -18,6 +20,7 @@ import './App.css'
 function App() {
   return (
     <BoothsProvider>
+    <NoticesProvider>
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -27,8 +30,10 @@ function App() {
       <Route path="/home" element={<PlaceholderPage />} />
       <Route path="/organizer/map" element={<OrganizerMapPage />} />
       <Route path="/organizer/booths" element={<BoothManagePage />} />
+      <Route path="/organizer/notices" element={<NoticePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </NoticesProvider>
     </BoothsProvider>
   )
 }

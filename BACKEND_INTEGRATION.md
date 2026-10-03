@@ -15,6 +15,10 @@
 | `src/context/BoothsProvider.jsx` | 부스 목록의 **유일한 저장소**. 페이지들은 `useBooths()`로만 읽고 바꿈 |
 | `src/pages/BoothManagePage.jsx` | 부스 관리 (신청 목록·상세·승인/반려) |
 | `src/pages/OrganizerMapPage.jsx` | 지도 제작 (평면도·핀·부스 할당) |
+| `src/constants/notice.js` | 공지 상태·대상 코드 값과 한글 라벨, 이미지 제한(10MB, PNG/JPG) |
+| `src/mocks/notices.js` | **가짜 공지 5건.** 백엔드가 붙으면 삭제 |
+| `src/context/NoticesProvider.jsx` | 공지 목록의 **유일한 저장소** (`useNotices()`) |
+| `src/pages/NoticePage.jsx` | 공지사항 (열람 · 작성 · 수정) |
 
 > 화면 문구는 한글 라벨이지만, **서버와 주고받는 값은 항상 코드 값**(`'approved'` 등)입니다.
 > 라벨을 바꿔도 API는 영향받지 않습니다.
@@ -42,6 +46,27 @@
   돌아갑니다(토글).
 - `approved`를 벗어나면(취소·반려) `boothNo`는 `null`이 되어야 합니다.
 - **지도 제작의 "승인된 부스 할당" 목록은 `status === 'approved'`인 부스만** 보여줍니다.
+
+### Notice (공지)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | number | 공지 id (지금은 프론트가 만든 임시 번호 → 서버가 발급) |
+| `title` | string | 제목 (최대 60자) |
+| `body` | string | 본문. 줄바꿈 유지 |
+| `attachments` | `{ id, name, size, url }[]` | 첨부 파일 (선택, 최대 5개). 이미지는 본문 아래에 바로 보이고 나머지는 다운로드. `url`은 지금 브라우저 임시 `blob:` 주소 |
+| `audiences` | `('staff' \| 'booth' \| 'visitor')[]` | 공지 대상: 스태프 / 부스 운영자 / 일반 방문객. 게시하려면 1개 이상 |
+| `urgent` | boolean | 긴급 공지. 해당 대상의 공지 목록 최상단에 노출 |
+| `status` | `'published' \| 'closed' \| 'draft'` | 게시 중 / 게시 종료 / 임시 저장 |
+| `publishedAt` | string \| null | 처음 게시된 시각 `YYYY-MM-DDTHH:mm`. 임시 저장만 된 공지는 `null` |
+| `updatedAt` | string | 마지막 수정 시각 `YYYY-MM-DDTHH:mm` |
+
+규칙
+- **임시 저장**은 제목만 있으면 가능, **게시**는 제목·본문·대상(1개 이상)이 모두 필요합니다.
+- 처음 게시될 때 `publishedAt`을 찍고, 이후 수정·종료·재게시에서는 유지합니다.
+- 목록 정렬: **게시 중인 긴급 공지가 맨 위**, 나머지는 `publishedAt`(없으면 `updatedAt`) 최신순.
+- 방문객/운영자 앱에서는 `status === 'published'`이면서 자기 대상이 `audiences`에 포함된 공지만 보여야 합니다.
+- 첨부 가능 확장자: 이미지(png, jpg, jpeg, gif, webp), pdf, 한글(hwp, hwpx), doc/docx, ppt/pptx, xls/xlsx/csv, txt, zip. 파일당 최대 10MB, 최대 5개. 목록은 `src/constants/notice.js`에 있고, 프론트에서도 검사하지만 **서버에서도 검증**해야 합니다(확장자뿐 아니라 실제 내용·용량).
 
 ### Pin (지도 위 핀)
 
@@ -76,6 +101,11 @@
 | 승인 / 반려 / 취소 | `setStatus(id, status)` | `BoothsProvider.setStatus` | `PATCH /booths/:id/status` `{ status }` |
 | 검토 메모 · 반려 사유 입력 | `editNotes(id, fields)` | `BoothsProvider.editNotes` (입력마다가 아니라 blur 때 저장 권장) | `PATCH /booths/:id/notes` `{ reviewMemo, rejectReason }` |
 | 초대 링크 복사 | `/signup/booth` 주소 조합 | `BoothManagePage.copyInvite` | `GET /invite-link` → `{ url }` |
+| 공지 목록 불러오기 | `MOCK_NOTICES` | `NoticesProvider` 초기값 | `GET /notices` → `Notice[]` |
+| 공지 작성 / 수정 / 임시 저장 | `saveNotice(id, fields, status)` | `NoticesProvider.saveNotice` (`id`가 `null`이면 생성) | `POST /notices`, `PUT /notices/:id` |
+| 게시 종료 / 다시 게시 | `closeNotice` / `reopenNotice` | `NoticesProvider.setStatus` | `PATCH /notices/:id/status` `{ status }` |
+| 공지 삭제 | `deleteNotice(id)` | `NoticesProvider.deleteNotice` | `DELETE /notices/:id` |
+| 공지 파일 첨부 | 브라우저 임시 URL | `NoticePage.addFiles` | `POST /notices/attachments` (multipart) → `{ id, name, size, url }` |
 | 평면도·핀 불러오기 | 없음 (페이지 state) | `OrganizerMapPage` 초기 state | `GET /map` → `{ floorplan, pins }` |
 | 지도 **저장하기** | 버튼만 있음 (동작 없음) | `OrganizerMapPage`의 저장 버튼 | `PUT /map` `{ floorplan, pins }` |
 | 평면도 업로드 | 브라우저 임시 URL | `OrganizerMapPage.loadFile` | `POST /map/floorplan` (multipart) → `{ url }` |
@@ -85,6 +115,7 @@
 | 데이터 | 위치 | 비고 |
 |---|---|---|
 | 부스 목록 (`booths`) | `BoothsProvider` (앱 전체 공유) | 승인/반려가 지도 제작에 바로 반영됨 |
+| 공지 목록 (`notices`) | `NoticesProvider` (앱 전체 공유) | 방문객/운영자 화면이 생기면 같은 데이터를 대상별로 필터해서 사용 |
 | 평면도 (`image`), 핀 (`pins`) | `OrganizerMapPage`의 state | **페이지를 벗어나면 사라짐.** 저장/불러오기 연결 필요 |
 | 선택한 핀·부스, 필터, 페이지, 탭 | 각 페이지의 state | 화면 전용이라 서버와 무관 |
 
@@ -94,12 +125,14 @@
    (로딩/오류 상태가 필요하면 Provider에 추가).
 2. `setStatus` / `editNotes` 안에서 API 호출. 실패하면 이전 값으로 되돌리는 방식을 권장.
 3. `OrganizerMapPage`에 `GET /map`·`PUT /map`·이미지 업로드 연결. 저장 후 핀 id를 서버 값으로 교체.
-4. 부스를 핀에 할당할 때(`boothId` 지정) `Booth.boothNo`를 어떻게 부여할지 정책 결정 필요
+4. `NoticesProvider`도 같은 방식으로 연결 (`saveNotice`는 서버가 발급한 id를 돌려받아 반환).
+5. 부스를 핀에 할당할 때(`boothId` 지정) `Booth.boothNo`를 어떻게 부여할지 정책 결정 필요
    (지금은 두 값이 연결되어 있지 않음).
 
 ## 6. 아직 화면만 있고 동작이 없는 부분
 
 - 부스 관리: **+ 부스 직접 등록**, 제출 서류 **보기** 버튼
+- 공지사항: 저장·게시가 화면 안에서만 반영됨(새로고침하면 처음 상태). 알림 발송 없음
 - 지도 제작: **저장하기**, **미리보기**
 - 상단 바의 알림·사용자 메뉴, 사이드바의 대시보드/부스 모집/실시간 운영 현황/공지사항/정산 관리
 - 로그인·회원가입 화면(`src/pages/LoginPage.jsx` 등)은 폼만 있고 인증 처리가 없음

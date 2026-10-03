@@ -28,6 +28,20 @@
  * @property {number} x                       pixels in the ORIGINAL image (0..floorplan.width)
  * @property {number} y                       pixels in the ORIGINAL image (0..floorplan.height)
  *
+ * @typedef {'published' | 'closed' | 'draft'} NoticeStatus   see NOTICE_STATUS
+ * @typedef {'staff' | 'booth' | 'visitor'} NoticeAudience   see NOTICE_AUDIENCE
+ *
+ * @typedef {Object} Notice                   one announcement
+ * @property {number} id
+ * @property {string} title
+ * @property {string} body                    plain text; line breaks are kept
+ * @property {{ id: string, name: string, size: number, url: string }[]} attachments  optional files (images shown inline)
+ * @property {NoticeAudience[]} audiences     who can see it (at least one when published)
+ * @property {boolean} urgent                 urgent notices sit at the top of the audience's list
+ * @property {NoticeStatus} status
+ * @property {string | null} publishedAt      'YYYY-MM-DDTHH:mm'; first time it went live
+ * @property {string} updatedAt               'YYYY-MM-DDTHH:mm'
+ *
  * @typedef {Object} Floorplan                uploaded floor-plan image
  * @property {string} url
  * @property {string} name

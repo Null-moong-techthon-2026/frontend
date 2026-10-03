@@ -6,6 +6,7 @@ import {
 } from '../constants/booth'
 import { useBooths } from '../context/useBooths'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
+import Select from '../components/Select'
 import './booth-manage.css'
 
 const PAGE_SIZE = 7
@@ -27,17 +28,6 @@ const STATUS_CLASS = {
 
 function StatusChip({ status }) {
   return <span className={`bm-chip ${STATUS_CLASS[status]}`}>{BOOTH_STATUS_LABEL[status]}</span>
-}
-
-function Select({ value, onChange, children }) {
-  return (
-    <label className="bm-select">
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {children}
-      </select>
-      <Icon name="chevron" />
-    </label>
-  )
 }
 
 export default function BoothManagePage() {

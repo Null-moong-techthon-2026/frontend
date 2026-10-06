@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import boothLogo from '../assets/booth-logo.png'
 import { EVENT_PROGRESS, EVENT_PROGRESS_LABEL } from '../constants/event'
+import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
 import { formatDateRange } from '../utils/date'
 import { getEventProgress } from '../utils/event'
@@ -61,6 +63,29 @@ export function Icon({ name }) {
 export default function OrganizerLayout({ active, crumb, title, subtitle, actions, children }) {
   const navigate = useNavigate()
   const { event } = useEvent()
+  const { user, logout } = useAuth()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const userMenuRef = useRef(null)
+
+  // Close the account menu on outside click or Escape.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e) => !userMenuRef.current?.contains(e.target) && setMenuOpen(false)
+    const onKey = (e) => e.key === 'Escape' && setMenuOpen(false)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    await logout()
+    navigate('/login', { replace: true })
+  }
   const progress = getEventProgress(event.startDate, event.endDate)
 
   return (
@@ -102,11 +127,36 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
             <button type="button" className="om-icon-btn" aria-label="알림">
               <Icon name="bell" />
             </button>
-            <button type="button" className="om-user">
-              <span className="om-avatar" />
-              운영자님
-              <Icon name="chevron" />
-            </button>
+            <div className="om-user-menu" ref={userMenuRef}>
+              <button
+                type="button"
+                className="om-user"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((o) => !o)}
+              >
+                <span className="om-avatar">{user?.nickname?.slice(0, 1)}</span>
+                {user?.nickname ?? ''}님
+                <Icon name="chevron" />
+              </button>
+              {menuOpen && (
+                <div className="om-user-popover" role="menu">
+                  <div className="om-user-info">
+                    <strong>{user?.nickname}</strong>
+                    <span>{user?.email}</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="om-user-logout"
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                  >
+                    {loggingOut ? '로그아웃 중…' : '로그아웃'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

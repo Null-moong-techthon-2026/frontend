@@ -2,31 +2,47 @@ import { useId, useState } from 'react'
 
 // Reusable labeled input row.
 //
-// - `action`: optional trailing button for things like 중복확인 / 인증요청 /
-//   인증확인. These are backend-dependent, so they are rendered as inert
-//   UI-only buttons (no handler wired up) until the real API exists.
-// - `type="password"`: gets a 보기/숨기기 visibility toggle, matching the
-//   wireframe. The browser's own native reveal-password icon is hidden via
-//   CSS so it doesn't double up with this toggle.
+// - `value` / `onChange(value)`: make it a controlled field. Without `value` it stays an
+//   uncontrolled, UI-only input.
+// - `error` / `hint`: a red message or a neutral note shown under the input (error wins).
+// - `action`: optional trailing chip (중복 확인 / 인증 요청 / 인증 확인). It only does something
+//   when `onAction` is given; `actionDisabled` greys it out while a request is running.
+// - `type="password"`: gets a 보기/숨기기 visibility toggle, matching the wireframe. The
+//   browser's own native reveal-password icon is hidden via CSS so it doesn't double up.
 export default function FormField({
   label,
   type = 'text',
   placeholder,
   action,
+  onAction,
+  actionDisabled = false,
   autoComplete = 'off',
+  value,
+  onChange,
+  error = '',
+  hint = '',
+  maxLength,
+  inputMode,
 }) {
   const id = useId()
   const [revealed, setRevealed] = useState(false)
 
   const isPassword = type === 'password'
   const inputType = isPassword ? (revealed ? 'text' : 'password') : type
+  const controlled = value !== undefined
+  const note = error || hint
 
   return (
     <div className="form-field">
       <div className="form-field-head">
         <label htmlFor={id}>{label}</label>
         {action && (
-          <button type="button" className="field-chip">
+          <button
+            type="button"
+            className="field-chip"
+            onClick={onAction}
+            disabled={actionDisabled}
+          >
             {action}
           </button>
         )}
@@ -38,6 +54,10 @@ export default function FormField({
           type={inputType}
           placeholder={placeholder}
           autoComplete={autoComplete}
+          maxLength={maxLength}
+          inputMode={inputMode}
+          aria-invalid={error ? true : undefined}
+          {...(controlled ? { value, onChange: (e) => onChange?.(e.target.value) } : {})}
         />
         {isPassword && (
           <button
@@ -49,6 +69,7 @@ export default function FormField({
           </button>
         )}
       </div>
+      {note && <p className={`form-field-note${error ? ' is-error' : ''}`}>{note}</p>}
     </div>
   )
 }

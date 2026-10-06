@@ -25,10 +25,17 @@ npm run lint     # 코드 검사
 | `/signup/organizer` | 축제 주최자 회원가입 |
 | `/signup/booth` | 부스 운영자 회원가입 |
 | `/home` | 메인 (준비 중) |
-| `/organizer/dashboard` | 주최자 · 대시보드 |
+| `/organizer/dashboard` | 주최자 · 대시보드 (로그인 필요) |
 | `/organizer/map` | 주최자 · 지도 제작 |
 | `/organizer/booths` | 주최자 · 부스 관리 |
 | `/organizer/notices` | 주최자 · 공지사항 |
+
+### 로그인 · 회원가입 (백엔드 연동)
+- 회원가입(주최자/부스 운영자): 아이디 중복 확인, 입력 검증, 가입 후 로그인 화면으로 이동
+- 로그인 / 로그아웃: 상단 바의 닉네임을 눌러 로그아웃. 새로고침해도 로그인 유지
+- `/organizer/*` 화면은 로그인해야 열림 (아니면 `/login`으로 이동했다가 로그인 후 원래 페이지로 복귀)
+- 주최자/부스 운영자는 아직 구분되지 않음: 백엔드가 가입 유형을 저장하지 않아서, 로그인하면 모두 대시보드로 이동
+- 백엔드(`backend-main`)가 켜져 있어야 동작합니다. 자세한 내용은 [BACKEND_INTEGRATION.md](BACKEND_INTEGRATION.md) 0장
 
 ### 대시보드 (`/organizer/dashboard`)
 - 행사 정보, 부스 모집 현황, 부스 운영 요약(전체 부스 · 운영 중 · 준비 중 · 품절 · 마감)
@@ -57,6 +64,21 @@ npm run lint     # 코드 검사
 - 임시 저장 / 게시하기 / 수정 저장 / 게시 종료 / 다시 게시 / 삭제(확인 창)
 - 저장·게시는 화면 안에서만 반영됨 (백엔드 연동 후 실제 저장)
 
+## 실행 방법
+
+백엔드와 프론트를 같이 쓰려면 터미널 2개가 필요합니다.
+
+```powershell
+# 터미널 1 — 백엔드 (backend-main 폴더, Docker Desktop 실행 후, JDK 21 필요)
+docker compose up -d --wait db
+.\gradlew.bat bootRun
+
+# 터미널 2 — 프론트 (이 폴더)
+npm run dev
+```
+
+프론트 개발 서버가 `/api` 요청을 `http://127.0.0.1:8080`(백엔드)으로 전달합니다.
+
 ## 폴더 구조
 
 ```
@@ -64,7 +86,8 @@ src/
 ├─ pages/        화면 (랜딩, 로그인, 회원가입, 대시보드, 지도 제작, 부스 관리, 공지사항)
 ├─ components/   공통 컴포넌트 (OrganizerLayout 등)
 ├─ constants/    상태·카테고리·핀 종류 코드와 한글 라벨
-├─ context/      행사·부스·공지 저장소 (EventProvider, BoothsProvider, NoticesProvider)
+├─ api/          백엔드 호출 (client, authApi)
+├─ context/      로그인·행사·부스·공지 저장소 (AuthProvider, EventProvider, BoothsProvider, NoticesProvider)
 ├─ utils/        날짜 포맷 등 공통 함수
 ├─ mocks/        가짜 데이터 (백엔드 연동 시 삭제)
 ├─ assets/       이미지, 핀 아이콘
@@ -75,5 +98,5 @@ src/
 ## 참고
 - 화면 레이아웃은 데스크톱(가로 1081px 이상)에서 한 화면에 맞도록 만들어져 있고, 휴대폰 규격은
   별도로 맞추지 않았습니다.
-- 새로고침하면 부스 목록과 지도(평면도·핀)는 처음 상태로 돌아갑니다. 저장 기능은 백엔드 연동 후
-  구현됩니다.
+- 로그인(인증)만 백엔드와 연결되어 있습니다. 부스·공지·행사·지도 데이터는 백엔드 API가 아직 없어서
+  가짜 데이터이며, 새로고침하면 처음 상태로 돌아갑니다.

@@ -8,6 +8,8 @@ import OrganizerMapPage from './pages/OrganizerMapPage'
 import BoothManagePage from './pages/BoothManagePage'
 import DashboardPage from './pages/DashboardPage'
 import NoticePage from './pages/NoticePage'
+import AuthProvider from './context/AuthProvider'
+import RequireAuth from './components/RequireAuth'
 import BoothsProvider from './context/BoothsProvider'
 import NoticesProvider from './context/NoticesProvider'
 import EventProvider from './context/EventProvider'
@@ -22,6 +24,7 @@ import './App.css'
 function App() {
   return (
     <EventProvider>
+    <AuthProvider>
     <BoothsProvider>
     <NoticesProvider>
     <Routes>
@@ -31,14 +34,18 @@ function App() {
       <Route path="/signup/organizer" element={<OrganizerSignupPage />} />
       <Route path="/signup/booth" element={<BoothSignupPage />} />
       <Route path="/home" element={<PlaceholderPage />} />
-      <Route path="/organizer/map" element={<OrganizerMapPage />} />
-      <Route path="/organizer/dashboard" element={<DashboardPage />} />
-      <Route path="/organizer/booths" element={<BoothManagePage />} />
-      <Route path="/organizer/notices" element={<NoticePage />} />
+      {/* Everything under /organizer needs a logged-in user (RequireAuth sends others to /login). */}
+      <Route element={<RequireAuth />}>
+        <Route path="/organizer/map" element={<OrganizerMapPage />} />
+        <Route path="/organizer/dashboard" element={<DashboardPage />} />
+        <Route path="/organizer/booths" element={<BoothManagePage />} />
+        <Route path="/organizer/notices" element={<NoticePage />} />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </NoticesProvider>
     </BoothsProvider>
+    </AuthProvider>
     </EventProvider>
   )
 }

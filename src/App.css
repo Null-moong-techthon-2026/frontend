@@ -785,3 +785,55 @@
     height: 240px;
   }
 }
+
+/* ---------- Auth feedback (validation, server errors, success notices) ---------- */
+.form-field-note {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+.form-field-note.is-error {
+  color: #b5533c;
+}
+
+.form-field-row input[aria-invalid='true'],
+.form-field-row--merged:has(input[aria-invalid='true']) {
+  border-color: #b5533c;
+}
+
+.field-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.field-chip.is-ok {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.auth-alert,
+.auth-notice {
+  margin: 0;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.auth-alert {
+  background: #fbefec;
+  color: #b5533c;
+}
+
+.auth-notice {
+  background: #edf9d3;
+  color: var(--ink);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

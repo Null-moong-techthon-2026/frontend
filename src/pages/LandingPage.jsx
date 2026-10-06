@@ -1,11 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import ScreenShell from '../components/ScreenShell'
 import boothLogo from '../assets/booth-logo.png'
+import { HOME_PATH } from '../constants/auth'
+import { useAuth } from '../context/useAuth'
 
 // Screen 1 — entry screen. Lets the user skip straight in (시작하기)
 // or head to the login/signup flow.
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
 
   return (
     <ScreenShell className="landing-card">
@@ -34,13 +37,25 @@ export default function LandingPage() {
       </div>
 
       <div className="landing-actions">
-        <p className="landing-tooltip">가입·로그인 없이 바로 이용해요!</p>
-        <button type="button" className="btn btn-primary" onClick={() => navigate('/home')}>
+        <p className="landing-tooltip">
+          {user ? `${user.nickname}님, 환영해요!` : '가입·로그인 없이 바로 이용해요!'}
+        </p>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => navigate(user ? HOME_PATH : '/home')}
+        >
           시작하기
         </button>
-        <button type="button" className="btn btn-outline" onClick={() => navigate('/login')}>
-          로그인 / 회원가입
-        </button>
+        {user ? (
+          <button type="button" className="btn btn-outline" onClick={logout}>
+            로그아웃
+          </button>
+        ) : (
+          <button type="button" className="btn btn-outline" onClick={() => navigate('/login')}>
+            로그인 / 회원가입
+          </button>
+        )}
       </div>
     </ScreenShell>
   )

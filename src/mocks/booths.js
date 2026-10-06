@@ -45,7 +45,7 @@ export const MOCK_BOOTHS = ROWS.map(([name, appliedAt, category, applicantName, 
   intro: `${name}에서 간단한 ${BOOTH_CATEGORY_LABEL[category]} 관련 상품을 판매합니다.`,
   applicant: {
     name: applicantName,
-    phone: `010-${String(1000 + i * 37).slice(-4)}-${String(2000 + i * 53).slice(-4)}`,
+    phone: `010${String(1000 + i * 37).slice(-4)}${String(2000 + i * 53).slice(-4)}`, // digits only, like the backend
     email: `booth${i + 1}@example.com`,
   },
   documents: [

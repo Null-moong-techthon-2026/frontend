@@ -29,6 +29,13 @@
   align-items: center;
   gap: 10px;
   padding: 0 6px;
+  /* It is a button (goes to the dashboard); strip the default button look. */
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .om-brand-logo {
@@ -1024,7 +1031,8 @@
 }
 
 @media (min-width: 1081px) and (max-height: 860px) {
-  .om-search {
+  /* Only the booth picker in 지도 제작: hidden on short screens so the assign button stays visible. */
+  .om-booth-search {
     display: none;
   }
 

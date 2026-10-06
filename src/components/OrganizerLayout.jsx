@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import boothLogo from '../assets/booth-logo.png'
+import { HOME_PATH } from '../constants/auth'
 import { EVENT_PROGRESS, EVENT_PROGRESS_LABEL } from '../constants/event'
 import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
@@ -12,8 +13,8 @@ const NAV = [
   { key: 'dashboard', label: '대시보드', icon: 'grid', to: '/organizer/dashboard' },
   { key: 'map', label: '지도 제작', icon: 'map', to: '/organizer/map' },
   { key: 'booths', label: '부스 관리', icon: 'store', to: '/organizer/booths' },
-  { key: 'recruit', label: '부스 모집', icon: 'megaphone' },
-  { key: 'live', label: '실시간 운영 현황', icon: 'chart' },
+  { key: 'recruit', label: '부스 모집', icon: 'megaphone', to: '/organizer/recruit' },
+  { key: 'live', label: '실시간 운영 현황', icon: 'chart', to: '/organizer/live' },
   { key: 'notice', label: '공지사항', icon: 'bell', to: '/organizer/notices' },
   { key: 'settle', label: '정산 관리', icon: 'won', badge: '준비중' },
 ]
@@ -91,10 +92,15 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
   return (
     <div className="om-app">
       <aside className="om-sidebar">
-        <div className="om-brand">
+        <button
+          type="button"
+          className="om-brand"
+          aria-label="대시보드로 이동"
+          onClick={() => navigate(HOME_PATH)}
+        >
           <img src={boothLogo} alt="" className="om-brand-logo" />
           <span className="om-brand-name">부스럭</span>
-        </div>
+        </button>
 
         <div className="om-event-card">
           <p className="om-event-name">{event.name}</p>

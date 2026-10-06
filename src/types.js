@@ -13,6 +13,8 @@
  * @property {string} appliedAt               ISO date, YYYY-MM-DD
  * @property {number | null} boothNo          booth number, only while approved
  * @property {'preparing' | 'open' | 'soldout' | 'closed' | null} operatingStatus  day-of status; only approved booths have one (see BOOTH_OPERATING_STATUS)
+ * @property {{ id: string, name: string, stock: StockLevel }[]} menus  menu items and their stock (see STOCK_LEVEL)
+ * @property {string} statusChangedAt         'YYYY-MM-DDTHH:mm'; last time the operating status or a menu's stock changed
  * @property {string} intro                   운영 소개
  * @property {{ name: string, phone: string, email: string }} applicant
  * @property {{ id: string, name: string, url: string | null }[]} documents
@@ -20,6 +22,8 @@
  * @property {string} rejectReason            visible to organizer and booth operator
  *
  * @typedef {'booth' | 'toilet' | 'info' | 'medical' | 'etc'} PinType   see PIN_TYPE
+ *
+ * @typedef {'unlimited' | 'plenty' | 'low' | 'soldout'} StockLevel   see STOCK_LEVEL
  *
  * @typedef {Object} Pin                      one pin on the floor plan
  * @property {number} id
@@ -56,6 +60,18 @@
  * @property {string} inviteCode              booth-operator invite code
  * @property {string} inviteUrl               booth-operator invite link
  * @property {string} visitorUrl              visitor link (also encoded in the QR)
+ *
+ * @typedef {Object} Recruitment              the booth-recruitment announcement (부스 모집)
+ *   The deadline and target count are NOT here: they are Event.recruitDeadline / recruitTarget
+ *   (the dashboard shows them too). Status (모집 중/모집 마감/비공개) is not a field either:
+ *   it is derived from `published` and the deadline (utils/recruit.js).
+ * @property {boolean} published              visible to booth operators
+ * @property {string} intro                   line breaks are kept (max 300)
+ * @property {string | null} imageUrl         optional cover image
+ * @property {BoothCategory[]} categories     booth categories allowed to apply (at least one)
+ * @property {string} feeInfo                 participation-fee text, e.g. '50,000원 / 부스'
+ * @property {{ id: string, label: string, required: boolean }[]} documents  documents applicants submit
+ * @property {string} contact                 inquiry contact, free text
  *
  * @typedef {Object} Floorplan                uploaded floor-plan image
  * @property {string} url

@@ -3,6 +3,7 @@ import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
 import { BOOTH_STATUS } from '../constants/booth'
 import { FACILITIES, PIN_TYPE } from '../constants/map'
 import { useBooths } from '../context/useBooths'
+import { useMap } from '../context/useMap'
 import pinBooth from '../assets/pins/pin-booth.svg'
 import pinToilet from '../assets/pins/pin-toilet.svg'
 import pinInfo from '../assets/pins/pin-info.svg'
@@ -63,7 +64,8 @@ export default function OrganizerMapPage() {
   const [selected, setSelected] = useState(null)
   const [tab, setTab] = useState('unplaced')
   const [facility, setFacility] = useState(PIN_TYPE.BOOTH)
-  const [image, setImage] = useState(null)
+  // The floor plan and pins live in MapProvider so other screens (실시간 운영 현황) can read them.
+  const { image, setImage, pins, setPins } = useMap()
   const [dragging, setDragging] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -73,11 +75,8 @@ export default function OrganizerMapPage() {
   const pinDragRef = useRef(null)
   const suppressClickRef = useRef(false)
   const downWasActiveRef = useRef(false)
-  const nextPinId = useRef(1)
   const [placing, setPlacing] = useState(false)
   // Pin coords are in the uploaded image's own pixel space (0..width, 0..height), not screen px.
-  // TODO(backend): initialise image + pins from the saved map (GET /map); see BACKEND_INTEGRATION.md.
-  const [pins, setPins] = useState([])
   const [activePinId, setActivePinId] = useState(null)
   const stageRef = useRef(null)
   const viewportRef = useRef(null)
@@ -261,7 +260,8 @@ export default function OrganizerMapPage() {
     const u = pt.x / image.width
     const v = pt.y / image.height
     if (u < 0 || u > 1 || v < 0 || v > 1) return
-    const id = nextPinId.current++
+    // Pins now outlive this page, so pick an id that is free among the existing pins.
+    const id = Math.max(0, ...pins.map((p) => p.id)) + 1
     setActivePinId(id)
     setSelected(null)
     setPins((prev) => [
@@ -604,7 +604,7 @@ export default function OrganizerMapPage() {
               </div>
             </div>
 
-            <label className="om-search">
+            <label className="om-search om-booth-search">
               <Icon name="search" />
               <input placeholder="부스명 · 부스 번호 검색" />
             </label>

@@ -41,3 +41,19 @@ export const BOOTH_OPERATING_STATUS_LABEL = {
   [BOOTH_OPERATING_STATUS.SOLD_OUT]: '품절',
   [BOOTH_OPERATING_STATUS.CLOSED]: '마감',
 }
+
+// Stock level of one menu item of a booth (set by the booth operator or the organizer).
+export const STOCK_LEVEL = {
+  UNLIMITED: 'unlimited', // 무제한
+  PLENTY: 'plenty', // 충분
+  LOW: 'low', // 부족
+  SOLDOUT: 'soldout', // 품절
+}
+
+// Order = display order (legend and dropdowns), most plentiful first.
+export const STOCK_LEVEL_LABEL = {
+  [STOCK_LEVEL.UNLIMITED]: '무제한',
+  [STOCK_LEVEL.PLENTY]: '충분',
+  [STOCK_LEVEL.LOW]: '부족',
+  [STOCK_LEVEL.SOLDOUT]: '품절',
+}

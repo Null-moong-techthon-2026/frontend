@@ -6,6 +6,7 @@ import {
   BOOTH_CATEGORY as C,
   BOOTH_OPERATING_STATUS as O,
   BOOTH_STATUS as S,
+  STOCK_LEVEL as K,
 } from '../constants/booth'
 
 // [name, appliedAt, category, applicant name, status, boothNo]
@@ -34,14 +35,42 @@ const ROWS = [
 const OPERATING = [O.OPEN, O.OPEN, O.PREPARING, O.OPEN, O.SOLD_OUT, O.OPEN, O.CLOSED, O.OPEN, O.PREPARING, O.OPEN]
 let approvedSeen = 0
 
-export const MOCK_BOOTHS = ROWS.map(([name, appliedAt, category, applicantName, status, boothNo], i) => ({
+const MENU_NAMES = {
+  [C.FOOD]: ['떡볶이', '어묵', '튀김', '음료'],
+  [C.DRINK]: ['아메리카노', '카페라떼', '에이드', '차'],
+  [C.EXPERIENCE]: ['체험권 A', '체험권 B', '체험권 C'],
+  [C.GOODS]: ['키링', '스티커', '엽서', '파우치'],
+}
+
+// 2-4 menu items per booth. Stock follows the operating status so the data is believable:
+// sold out / closed booths have nothing left, booths still preparing have not sold anything,
+// open booths have a mix (never everything sold out, or they would be "sold out" booths).
+function makeMenus(i, category, operatingStatus) {
+  const names = MENU_NAMES[category]
+  return names.slice(0, Math.min(names.length, 2 + (i % 3))).map((name, j) => {
+    let stock
+    if (operatingStatus === O.SOLD_OUT || operatingStatus === O.CLOSED) stock = K.SOLDOUT
+    else if (operatingStatus !== O.OPEN) stock = j % 2 === 0 ? K.PLENTY : K.UNLIMITED
+    else if (j === 0 && i % 3 === 0) stock = K.SOLDOUT
+    else stock = [K.PLENTY, K.LOW, K.PLENTY, K.UNLIMITED][(i + j) % 4]
+    return { id: `${i + 1}-m${j + 1}`, name, stock }
+  })
+}
+
+const pad2 = (n) => String(n).padStart(2, '0')
+
+export const MOCK_BOOTHS = ROWS.map(([name, appliedAt, category, applicantName, status, boothNo], i) => {
+  const operatingStatus = status === S.APPROVED ? OPERATING[approvedSeen++ % OPERATING.length] : null
+  return {
   id: i + 1,
   name,
   category,
   status,
   appliedAt, // ISO date (YYYY-MM-DD)
   boothNo, // number | null — assigned once the booth is placed on the map
-  operatingStatus: status === S.APPROVED ? OPERATING[approvedSeen++ % OPERATING.length] : null, // approved booths only
+  operatingStatus, // approved booths only
+  menus: makeMenus(i, category, operatingStatus), // { id, name, stock }[] — see STOCK_LEVEL
+  statusChangedAt: `2026-10-06T${pad2(9 + (i % 6))}:${pad2((i * 7) % 60)}`, // last status/stock change
   intro: `${name}에서 간단한 ${BOOTH_CATEGORY_LABEL[category]} 관련 상품을 판매합니다.`,
   applicant: {
     name: applicantName,
@@ -54,4 +83,5 @@ export const MOCK_BOOTHS = ROWS.map(([name, appliedAt, category, applicantName, 
   ],
   reviewMemo: '', // organizer-only
   rejectReason: '', // visible to organizer and booth operator
-}))
+  }
+})

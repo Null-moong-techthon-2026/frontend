@@ -8,13 +8,16 @@ import {
 } from '../constants/booth'
 import { EVENT_PROGRESS, EVENT_PROGRESS_LABEL } from '../constants/event'
 import { NOTICE_STATUS } from '../constants/notice'
+import { RECRUIT_STATUS_LABEL } from '../constants/recruit'
 import { useBooths } from '../context/useBooths'
 import { useNotices } from '../context/useNotices'
+import { useRecruit } from '../context/useRecruit'
 import { useEvent } from '../context/useEvent'
 import EventEditModal from '../components/EventEditModal'
 import { formatDateTime } from '../utils/date'
 import { getEventProgress } from '../utils/event'
 import { audienceText, noticeDateText, sortNotices } from '../utils/notice'
+import { getRecruitStatus } from '../utils/recruit'
 import './dashboard.css'
 
 const RECENT_NOTICE_COUNT = 3
@@ -80,6 +83,8 @@ export default function DashboardPage() {
   const { booths } = useBooths()
   const { notices } = useNotices()
   const { event, updateEvent } = useEvent()
+  const { recruit } = useRecruit()
+  const recruitStatus = getRecruitStatus(recruit.published, event.recruitDeadline)
   const [copied, setCopied] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const progress = getEventProgress(event.startDate, event.endDate)
@@ -162,7 +167,7 @@ export default function DashboardPage() {
         <section className="db-recruit">
           <div className="db-recruit-title">
             <h3>부스 공개 모집 현황</h3>
-            <span>모집 중 · 유료 기능 사용 중</span>
+            <span>{RECRUIT_STATUS_LABEL[recruitStatus]}</span>
           </div>
           <dl>
             <div>
@@ -178,16 +183,18 @@ export default function DashboardPage() {
               <dd>{event.recruitTarget}팀</dd>
             </div>
           </dl>
-          {/* TODO(backend): recruitment management page. */}
-          <button type="button" className="om-btn om-btn-primary">
+          <button
+            type="button"
+            className="om-btn om-btn-primary"
+            onClick={() => navigate('/organizer/recruit')}
+          >
             모집 관리
           </button>
         </section>
 
         <div className="db-section-head">
           <h3>부스 운영 요약</h3>
-          {/* TODO: live-status page does not exist yet. */}
-          <button type="button" className="db-link">
+          <button type="button" className="db-link" onClick={() => navigate('/organizer/live')}>
             운영 현황 보기 →
           </button>
         </div>

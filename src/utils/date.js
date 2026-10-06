@@ -15,3 +15,9 @@ export function formatDateRange(start, end) {
   const endText = start.slice(0, 4) === end.slice(0, 4) ? dotted(end.slice(5)) : dotted(end)
   return `${dotted(start)} ~ ${endText}`
 }
+
+// Local time as 'HH:mm:ss' (the "최근 갱신" clock).
+export function nowTime() {
+  const d = new Date()
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}

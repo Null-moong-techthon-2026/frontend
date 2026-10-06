@@ -7,11 +7,15 @@ import PlaceholderPage from './pages/PlaceholderPage'
 import OrganizerMapPage from './pages/OrganizerMapPage'
 import BoothManagePage from './pages/BoothManagePage'
 import DashboardPage from './pages/DashboardPage'
+import LivePage from './pages/LivePage'
+import RecruitPage from './pages/RecruitPage'
 import NoticePage from './pages/NoticePage'
 import AuthProvider from './context/AuthProvider'
 import RequireAuth from './components/RequireAuth'
 import BoothsProvider from './context/BoothsProvider'
 import NoticesProvider from './context/NoticesProvider'
+import MapProvider from './context/MapProvider'
+import RecruitProvider from './context/RecruitProvider'
 import EventProvider from './context/EventProvider'
 import './App.css'
 
@@ -27,6 +31,8 @@ function App() {
     <AuthProvider>
     <BoothsProvider>
     <NoticesProvider>
+    <RecruitProvider>
+    <MapProvider>
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -40,9 +46,13 @@ function App() {
         <Route path="/organizer/dashboard" element={<DashboardPage />} />
         <Route path="/organizer/booths" element={<BoothManagePage />} />
         <Route path="/organizer/notices" element={<NoticePage />} />
+        <Route path="/organizer/recruit" element={<RecruitPage />} />
+        <Route path="/organizer/live" element={<LivePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </MapProvider>
+    </RecruitProvider>
     </NoticesProvider>
     </BoothsProvider>
     </AuthProvider>

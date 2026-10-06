@@ -21,6 +21,9 @@
 | 3 | `moong-techtoon` | `npm run dev` |
 
 백엔드가 꺼져 있으면 로그인·회원가입은 "서버에 연결할 수 없어요" 문구가 나옵니다.
+(백엔드 없이 프론트만 배포한 경우도 같습니다: `/api`가 404이거나 JSON이 아닌 응답이면 "서버가 없다"로 보고
+이 문구를 보여줍니다. 백엔드의 오류는 항상 JSON이라 구분할 수 있습니다.)
+`npm run preview`는 개발 서버의 프록시 설정을 그대로 써서 실제 백엔드로 요청이 갑니다.
 
 ### 연결 방식
 
@@ -98,6 +101,15 @@
 | `src/components/SignupForm.jsx` | 두 회원가입 화면이 같이 쓰는 폼 (검증·중복 확인·가입 요청) |
 | `src/constants/auth.js` | 인증 규칙·오류 문구·가입 유형 코드 |
 | `src/utils/validators.js` | 입력 검증 (백엔드 DTO와 동일한 규칙) |
+| `src/constants/recruit.js` | 모집 상태(모집 중/모집 마감/비공개) 코드·라벨과 입력 제한 |
+| `src/mocks/recruit.js` | **가짜 모집 공고.** 백엔드가 붙으면 삭제 |
+| `src/context/RecruitProvider.jsx` | 모집 공고의 **유일한 저장소** (`useRecruit()` → `recruit`, `updateRecruit`, `setPublished`) |
+| `src/utils/recruit.js` | 공개 여부와 마감일로 상태를 계산하는 `getRecruitStatus` |
+| `src/pages/RecruitPage.jsx` | 부스 모집 (공고 작성 · 신청 현황 · 미리보기 · 공개/종료) |
+| `src/pages/LivePage.jsx` | 실시간 운영 현황 (운영 상태·메뉴 재고 변경, 배치 현황, 지도에서 부스 위치) |
+| `src/context/MapProvider.jsx` | 지도(평면도 `image` + 핀 `pins`)의 **유일한 저장소** (`useMap()`). 지도 제작이 쓰고 실시간 운영 현황이 읽음 |
+| `src/components/FloorMap.jsx` | 평면도 위에 핀을 그려주는 읽기 전용 지도 (원본 이미지 픽셀 좌표 → % 위치) |
+| `src/components/MenuSelect.jsx` | 운영 상태·재고 단계를 고르는 드롭다운 |
 | `src/constants/booth.js` | 부스 상태·카테고리의 **코드 값**(백엔드와 주고받는 값)과 화면용 **한글 라벨** |
 | `src/constants/map.js` | 핀 종류(`PIN_TYPE`)와 "핀 생성하기" 목록(`FACILITIES`) |
 | `src/types.js` | `Booth`, `Pin`, `Floorplan` 모델 정의 (JSDoc) |
@@ -132,6 +144,8 @@
 | `status` | `'pending' \| 'approved' \| 'rejected'` | 검토 중 / 승인 / 반려 |
 | `appliedAt` | string | 신청일, `YYYY-MM-DD` |
 | `boothNo` | number \| null | 부스 번호. **승인 상태일 때만** 값이 있음 |
+| `menus` | `{ id, name, stock }[]` | 메뉴와 재고 단계. `stock`은 `unlimited`(무제한) / `plenty`(충분) / `low`(부족) / `soldout`(품절) |
+| `statusChangedAt` | string | 운영 상태나 메뉴 재고가 마지막으로 바뀐 시각 `YYYY-MM-DDTHH:mm` (화면에는 시:분만 표시) |
 | `operatingStatus` | `'preparing' \| 'open' \| 'soldout' \| 'closed' \| null` | 당일 운영 상태: 준비 중 / 운영 중 / 품절 / 마감. **승인된 부스만** 값이 있고, 승인되는 순간 `preparing`으로 시작 |
 | `intro` | string | 운영 소개 |
 | `applicant` | `{ name, phone, email }` | 신청자 정보 |
@@ -162,6 +176,28 @@
 | `recruitTarget` | number | 모집 부스 수(팀) |
 | `inviteCode`, `inviteUrl` | string | 부스 운영자 초대 코드 / 링크 (부스 관리의 **초대 링크 복사**도 같은 값) |
 | `visitorUrl` | string | 방문객용 링크 (QR에 담길 주소) |
+
+### Recruitment (부스 모집 공고)
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `published` | boolean | 부스 운영자에게 공개 중인지 |
+| `intro` | string | 소개글 (최대 300자, 줄바꿈 유지) |
+| `imageUrl` | string \| null | 대표 이미지 (선택). 지금은 브라우저 임시 `blob:` 주소 |
+| `categories` | `('food' \| 'drink' \| 'experience' \| 'goods')[]` | 모집 카테고리 (1개 이상) |
+| `feeInfo` | string | 참가비 안내 (최대 60자) |
+| `documents` | `{ id, label, required }[]` | 필요 서류. `required`가 체크된 것만 신청 때 제출. 기본 2개(운영계획서, 보건증) + 직접 추가(최대 10개, 이름 30자) |
+| `contact` | string | 문의 연락처 (자유 텍스트, 최대 80자) |
+
+**모집 마감일과 모집 부스 수는 이 모델에 없습니다.** 대시보드도 보여주기 때문에 `Event.recruitDeadline`,
+`Event.recruitTarget`에 있고, 모집 화면의 저장이 두 곳(`updateEvent` + `updateRecruit`)에 나눠 반영됩니다.
+서버에서도 같은 값을 쓰거나, 모집 API가 두 값을 함께 받아 Event에 반영하면 됩니다.
+
+**모집 상태는 저장하지 않습니다.** 계산합니다: 비공개(`published=false`) / 모집 중(공개 + 마감 전) /
+모집 마감(공개 + 마감일 지남). 서버가 상태 필드를 내려준다면 같은 기준이어야 합니다.
+
+**화면의 숫자는 다른 데이터에서 계산합니다.** 접수된 신청 = 부스 신청 전체, 검토 중/승인/반려 = 부스 상태별 수.
+그래서 부스 관리·지도 제작·대시보드와 항상 같습니다.
 
 ### Notice (공지)
 
@@ -222,14 +258,19 @@
 | 행사 정보 수정 (이름·날짜·장소·소개·이미지) | `updateEvent(fields)` | `EventProvider.updateEvent` | `PUT /event` (수정한 필드만 보내도 됨) |
 | 초대 코드·링크, 방문객 링크 | `event.inviteCode` 등 | `DashboardPage`, `BoothManagePage.copyInvite` (모두 `useEvent()`) | `GET /event` 응답에 포함 |
 | 방문객 QR | 임시 그림 | `DashboardPage.QrPlaceholder` | 서버가 QR 이미지 생성 또는 프론트 QR 라이브러리 |
-| 부스 운영 상태 변경 (운영 중/품절/마감) | 변경 화면 없음 | (추가 필요) | `PATCH /booths/:id/operating-status` |
+| 부스 운영 상태 변경 (준비 중/운영 중/품절/마감) | `setOperatingStatus(id, status)` | `BoothsProvider.setOperatingStatus` (실시간 운영 현황의 상태 버튼) | `PATCH /booths/:id/operating-status` `{ operatingStatus }` |
+| 메뉴 재고 변경 | `setMenuStock(id, menuId, stock)` | `BoothsProvider.setMenuStock` (부스 상세의 재고 버튼) | `PATCH /booths/:id/menus/:menuId` `{ stock }` |
+| 실시간 갱신 (30초마다 + 새로고침) | 시각만 갱신 | `LivePage`의 `refresh` / 자동 갱신 타이머 | 부스 목록(운영 상태·재고)을 다시 요청. 폴링이면 충분, 더 빠르게는 SSE/WebSocket |
+| 모집 공고 불러오기 / 저장 | `MOCK_RECRUIT`, `updateRecruit(fields)` | `RecruitProvider` (+ 마감일·부스 수는 `EventProvider.updateEvent`) | `GET /recruitment`, `PUT /recruitment` |
+| 모집 공개 / 공개 종료 | `setPublished(bool)` | `RecruitProvider.setPublished` | `PATCH /recruitment/publish` `{ published }` |
+| 모집 대표 이미지 | 브라우저 임시 URL | `RecruitPage.loadImage` | `POST /recruitment/image` (multipart) → `{ url }` |
 | 공지 목록 불러오기 | `MOCK_NOTICES` | `NoticesProvider` 초기값 | `GET /notices` → `Notice[]` |
 | 공지 작성 / 수정 / 임시 저장 | `saveNotice(id, fields, status)` | `NoticesProvider.saveNotice` (`id`가 `null`이면 생성) | `POST /notices`, `PUT /notices/:id` |
 | 게시 종료 / 다시 게시 | `closeNotice` / `reopenNotice` | `NoticesProvider.setStatus` | `PATCH /notices/:id/status` `{ status }` |
 | 공지 삭제 | `deleteNotice(id)` | `NoticesProvider.deleteNotice` | `DELETE /notices/:id` |
 | 공지 파일 첨부 | 브라우저 임시 URL | `NoticePage.addFiles` | `POST /notices/attachments` (multipart) → `{ id, name, size, url }` |
-| 평면도·핀 불러오기 | 없음 (페이지 state) | `OrganizerMapPage` 초기 state | `GET /map` → `{ floorplan, pins }` |
-| 지도 **저장하기** | 버튼만 있음 (동작 없음) | `OrganizerMapPage`의 저장 버튼 | `PUT /map` `{ floorplan, pins }` |
+| 평면도·핀 불러오기 | 없음 (`MapProvider` state) | `MapProvider` 초기값 | `GET /map` → `{ floorplan, pins }` |
+| 지도 **저장하기** | 버튼만 있음 (동작 없음) | `OrganizerMapPage`의 저장 버튼 (`MapProvider`의 `image`, `pins`를 보냄) | `PUT /map` `{ floorplan, pins }` |
 | 평면도 업로드 | 브라우저 임시 URL | `OrganizerMapPage.loadFile` | `POST /map/floorplan` (multipart) → `{ url }` |
 
 ## 4. 상태가 어디에 있나
@@ -237,8 +278,10 @@
 | 데이터 | 위치 | 비고 |
 |---|---|---|
 | 부스 목록 (`booths`) | `BoothsProvider` (앱 전체 공유) | 승인/반려가 지도 제작에 바로 반영됨 |
+| 모집 공고 (`recruit`) | `RecruitProvider` (앱 전체 공유) | 대시보드의 모집 상태가 같은 값을 읽음. 마감일·부스 수는 `EventProvider` |
+| 모집 화면의 입력 중인 내용 | `RecruitPage`의 state (`form`) | **저장하기를 눌러야** 위 저장소에 반영됨. 저장하지 않으면 사라짐 |
 | 공지 목록 (`notices`) | `NoticesProvider` (앱 전체 공유) | 방문객/운영자 화면이 생기면 같은 데이터를 대상별로 필터해서 사용 |
-| 평면도 (`image`), 핀 (`pins`) | `OrganizerMapPage`의 state | **페이지를 벗어나면 사라짐.** 저장/불러오기 연결 필요 |
+| 평면도 (`image`), 핀 (`pins`) | `MapProvider` (앱 전체 공유) | 다른 화면으로 가도 유지됨(실시간 운영 현황이 읽음). **새로고침하면 사라짐.** 저장/불러오기 연결 필요 |
 | 선택한 핀·부스, 필터, 페이지, 탭 | 각 페이지의 state | 화면 전용이라 서버와 무관 |
 
 ## 5. 백엔드를 붙일 때 순서 (권장)
@@ -253,10 +296,14 @@
 
 ## 6. 아직 화면만 있고 동작이 없는 부분
 
+- 실시간 운영 현황: 운영 상태·메뉴 재고 변경과 "최근 갱신" 시각은 화면 안에서만 반영됨(새로고침하면 처음 값). **자동 갱신 중/새로고침**은 지금 시각만 바꿈 — 가져올 서버 데이터가 아직 없음(`TODO(backend)`). 메뉴·재고는 가짜 데이터이고, **재고를 바꿔도 운영 상태가 자동으로 바뀌지는 않음**(모두 품절이어도 운영 중일 수 있음)
+- 실시간 운영 현황의 **배치 / 부스 위치**는 지도 제작의 핀(`pins[].boothId`)에서 계산됨. 지도 제작에서 핀을 만들고 부스를 할당해야 "배치 완료"로 보임
+
 - 대시보드: **모집 관리**, **운영 현황 보기**, **QR 복사** 버튼, 방문객 QR(임시 그림). **행사 정보 수정**은 화면에서 동작하지만 저장은 화면 안에서만 반영됨(새로고침하면 처음 값)
 - 대시보드의 숫자는 별도로 저장하지 않고 **부스 목록·공지 목록에서 계산**합니다 (전체 부스 = 승인된 부스, 신청 수 = 전체 신청, 운영 중/준비 중/품절/마감 = 승인된 부스의 `operatingStatus`). 백엔드도 같은 기준으로 집계하거나 목록을 그대로 내려주면 됩니다.
 - 최근 공지 = 임시 저장을 제외한 공지를 목록과 같은 순서(`sortNotices`)로 정렬한 앞 3개
 
+- 부스 모집: 저장·공개가 화면 안에서만 반영됨. **부스 모집 바로가기**는 부스 관리로 이동(운영자용 공개 모집 페이지는 아직 없음). 운영자가 보는 실제 공고 화면 없음 — **미리보기**만 있음
 - 부스 관리: **+ 부스 직접 등록**, 제출 서류 **보기** 버튼
 - 공지사항: 저장·게시가 화면 안에서만 반영됨(새로고침하면 처음 상태). 알림 발송 없음
 - 지도 제작: **저장하기**, **미리보기**

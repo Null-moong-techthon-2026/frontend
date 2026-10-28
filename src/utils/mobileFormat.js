@@ -71,3 +71,11 @@ export const boothSubtitle = (booth) =>
 
 // '11:00 – 21:00' (or '')
 export const hoursText = (hours) => (hours ? `${hours.start} – ${hours.end}` : '')
+
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
+
+// '2026-11-02' -> '11월 2일 (월)'
+export function dayTitle(ymd) {
+  const d = new Date(`${ymd}T00:00:00`)
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAYS[d.getDay()]})`
+}

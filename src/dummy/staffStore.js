@@ -8,6 +8,8 @@
 //          status PENDING 승인 대기 | WORKING 근무 중 | WAITING 대기 중 | BREAK 휴식 중 | ABSENT 미출근 | REJECTED 거부
 //   duty   { id, name, zone, start, end }              'HH:mm' times
 //   shift  { id, date, dutyId, start, end, memberIds, roles }
+//   accounts   { [accountId]: memberId }        which member a logged-in staff account is
+//   attendance { [memberId]: [{ date, in, out }] }   출근 / 퇴근 times ('HH:mm'; out is null until 퇴근)
 
 import { useSyncExternalStore } from 'react'
 
@@ -108,7 +110,7 @@ const seed = () => {
       roles: ['STAFF', 'LABOR', 'VOLUNTEER'],
     })),
   )
-  return { members, duties: DUTIES, shifts }
+  return { members, duties: DUTIES, shifts, accounts: {}, attendance: {} }
 }
 
 let state = null
@@ -118,7 +120,9 @@ function load() {
   if (state) return state
   try {
     const stored = JSON.parse(localStorage.getItem(KEY))
-    if (stored?.members && stored?.duties && stored?.shifts) return (state = stored)
+    if (stored?.members && stored?.duties && stored?.shifts) {
+      return (state = { accounts: {}, attendance: {}, ...stored })
+    }
   } catch {
     // fall through to the seed
   }
@@ -207,3 +211,125 @@ export function countBy(members, key) {
 }
 
 export { SHIFT_DAYS }
+
+// ---- the staff app (a logged-in staff account is one member) ----
+
+export const memberOfAccount = (data, accountId) => {
+  const id = data.accounts[accountId]
+  return id ? (data.members.find((x) => x.id === id) ?? null) : null
+}
+
+// A staff account asks to join with an invitation code: becomes a member waiting for approval.
+export function joinStaff(account, role) {
+  const current = load()
+  const id = `acc-${account.id}`
+  const member = {
+    id,
+    name: account.nickname,
+    role,
+    dutyId: null,
+    phone: account.phoneNumber ?? '',
+    email: account.email ?? '',
+    affiliation: '',
+    status: STAFF_STATUS.PENDING,
+    memo: '',
+    worked: false,
+  }
+  commit({
+    ...current,
+    members: [member, ...current.members.filter((x) => x.id !== id)],
+    accounts: { ...current.accounts, [account.id]: id },
+  })
+  return member
+}
+
+// Preview mode: the demo account is an approved staff member with the two shifts of the wireframe.
+export function ensureDemoStaff(account) {
+  const current = load()
+  if (current.accounts[account.id]) return
+  const id = 'demo-staff'
+  const member = {
+    id,
+    name: account.nickname,
+    role: STAFF_ROLE.STAFF,
+    dutyId: 'duty-info',
+    phone: '010-0000-1001',
+    email: account.email,
+    affiliation: '인하대학교',
+    status: STAFF_STATUS.WAITING,
+    memo: '',
+    worked: false,
+  }
+  // 11:00 - 13:00 입구 안내 (with 이수현 and 최지우), then 14:00 - 16:00 행사 안내 like the wireframe.
+  const addTo = (shift) => (shift.date === SHIFT_DAYS[0] && shift.dutyId === 'duty-info' ? { ...shift, memberIds: [...shift.memberIds, id] } : shift)
+  const morning = { id: 'shift-demo-gate', date: SHIFT_DAYS[0], dutyId: 'duty-gate', start: '11:00', end: '13:00', memberIds: [id, 's03', 's04'], roles: ['STAFF', 'LABOR', 'VOLUNTEER'] }
+  commit({
+    ...current,
+    members: [...current.members, member],
+    shifts: [...current.shifts.map(addTo), morning],
+    accounts: { ...current.accounts, [account.id]: id },
+  })
+}
+
+export function updateProfile(memberId, { name, phone, email, affiliation }) {
+  updateMember(memberId, { name, phone, email, affiliation })
+}
+
+const nowHm = () => {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+const todayYmd = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// The day the app shows as "오늘": today when it is an event day, else the first event day.
+export const scheduleDay = () => (SHIFT_DAYS.includes(todayYmd()) ? todayYmd() : SHIFT_DAYS[0])
+
+export const attendanceOn = (data, memberId, date) => (data.attendance[memberId] ?? []).find((a) => a.date === date) ?? null
+
+export function clockIn(memberId) {
+  const current = load()
+  const date = scheduleDay()
+  const list = current.attendance[memberId] ?? []
+  if (list.some((a) => a.date === date)) return
+  commit({
+    ...current,
+    attendance: { ...current.attendance, [memberId]: [...list, { date, in: nowHm(), out: null }] },
+    members: current.members.map((x) => (x.id === memberId ? { ...x, status: STAFF_STATUS.WORKING } : x)),
+  })
+}
+
+export function clockOut(memberId) {
+  const current = load()
+  const date = scheduleDay()
+  const list = current.attendance[memberId] ?? []
+  commit({
+    ...current,
+    attendance: { ...current.attendance, [memberId]: list.map((a) => (a.date === date && !a.out ? { ...a, out: nowHm() } : a)) },
+    members: current.members.map((x) => (x.id === memberId ? { ...x, status: STAFF_STATUS.WAITING, worked: true } : x)),
+  })
+}
+
+// Worked minutes of one attendance record (a 1 hour break is taken off long days).
+export function workedMinutes(record) {
+  if (!record?.out) return 0
+  const span = Number(record.out.slice(0, 2)) * 60 + Number(record.out.slice(3, 5)) - (Number(record.in.slice(0, 2)) * 60 + Number(record.in.slice(3, 5)))
+  return Math.max(0, span >= 300 ? span - 60 : span)
+}
+
+// A member's shifts of one day, earliest first.
+export const myShifts = (data, memberId, date) =>
+  data.shifts
+    .filter((s) => s.date === date && s.memberIds.includes(memberId))
+    .sort((a, b) => a.start.localeCompare(b.start))
+
+// Gives up a join request (or starts over after a rejection).
+export function cancelStaffJoin(accountId) {
+  const current = load()
+  const id = current.accounts[accountId]
+  const { [accountId]: removed, ...accounts } = current.accounts
+  void removed
+  commit({ ...current, accounts, members: current.members.filter((x) => x.id !== id) })
+}

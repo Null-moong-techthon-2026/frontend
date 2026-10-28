@@ -38,6 +38,12 @@ import OperatorProfile from './pages/operator/OperatorProfile'
 import OperatorProfileBooth from './pages/operator/OperatorProfileBooth'
 import OperatorAccount from './pages/operator/OperatorAccount'
 import InviteLanding from './pages/operator/InviteLanding'
+import StaffLayout from './pages/staff/StaffLayout'
+import StaffHome from './pages/staff/StaffHome'
+import StaffJoin, { StaffInviteLanding } from './pages/staff/StaffJoin'
+import StaffSchedule from './pages/staff/StaffSchedule'
+import { StaffNoticeDetail, StaffNotices } from './pages/staff/StaffNotices'
+import { StaffProfile, StaffProfileEdit, StaffRecords } from './pages/staff/StaffProfile'
 import AuthProvider from './context/AuthProvider'
 import RequireAuth from './components/RequireAuth'
 import RequireEvent from './components/RequireEvent'
@@ -94,7 +100,20 @@ function App() {
           and an event (RequireEvent lets the organizer create the first one). */}
       <Route element={<RequireAuth />}>
         {/* Booth operators (mobile screens). /invite/:code is the link organizers send them. */}
+        <Route path="/invite/staff/:token" element={<StaffInviteLanding />} />
         <Route path="/invite/:code" element={<InviteLanding />} />
+        {/* Staff (mobile screens): join with an invitation code, then schedule / notices / profile. */}
+        <Route path="/staff" element={<StaffLayout />}>
+          <Route index element={<Navigate to="home" replace />} />
+          <Route path="home" element={<StaffHome />} />
+          <Route path="join" element={<StaffJoin />} />
+          <Route path="schedule" element={<StaffSchedule />} />
+          <Route path="notices" element={<StaffNotices />} />
+          <Route path="notices/:noticeId" element={<StaffNoticeDetail />} />
+          <Route path="profile" element={<StaffProfile />} />
+          <Route path="profile/edit" element={<StaffProfileEdit />} />
+          <Route path="profile/records" element={<StaffRecords />} />
+        </Route>
         <Route path="/operator" element={<OperatorLayout />}>
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<OperatorHome />} />

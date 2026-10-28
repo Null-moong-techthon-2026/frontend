@@ -30,16 +30,40 @@ Figma 와이어프레임(주최자 웹 + 부스 운영자/스태프/방문객 �
 | 2 | 방문객 화면(홈·부스·부스 상세·지도·행사 정보·공지·공지 상세·후원사) | ✅ (`/e/:eventId`, `?demo=1`로 확인) |
 | 3 | 부스 운영자 화면(홈·부스 모집·공고 상세·신청서·내 부스·메뉴 재고·부스 정보 수정·공지·프로필·초대 코드) | ✅ (`/operator/...`, `/invite/:code`, `?demo=1` 참여 후 / `?demo=2` 새 계정) |
 | 4 | 주최자: 사이드바에 스태프·통계 추가, 스태프(명단·근무표·실시간 현황·팝업), 통계 | ✅ (`/organizer/staff?tab=roster|schedule|live`, `/organizer/stats`, 더미 데이터 `src/dummy/staffStore.js`·`statsData.js`) |
-| 5 | 스태프 모바일(초대 코드·역할 선택·승인 대기·홈·일정·공지·프로필·개인정보 수정·근무 기록) | ⬜ |
-| 6 | 마무리: 백엔드 요청 문서 정리, 린트·빌드, 이 문서 갱신 | ⬜ |
+| 5 | 스태프 모바일(초대 코드·역할 선택·승인 대기·홈·일정·공지·프로필·개인정보 수정·근무 기록) | ✅ (`/staff/...`, `/invite/staff/:token`) |
+| 6 | 마무리: 백엔드 요청 문서 정리, 린트·빌드, 이 문서 갱신 | ✅ |
 
 ## 어디서부터 이어서?
-- 완료: 0~4단계. 주최자 스태프 `src/pages/OrganizerStaffPage.jsx`(+`staff.css`), 통계 `OrganizerStatsPage.jsx`(+`stats.css`). 스태프 데이터는 `src/dummy/staffStore.js`(localStorage 저장, 스태프 앱과 공유).
-- 다음: **5단계 스태프 모바일 앱** (`/staff/...`): 초대 코드 입력(`/staff/join`) → 행사 참여 확인·역할 선택 → 승인 대기 → 홈(출퇴근 체크, 오늘 일정, 최근 공지) / 일정(날짜별 타임라인, 함께 근무하는 스태프 팝업) / 공지(+상세) / 프로필(+개인정보 수정, 근무 기록). 하단 탭: 홈·일정·공지·프로필. 초대 링크 `/invite/staff/:token`.
-  데이터는 `staffStore.js`를 그대로 쓰되 "내 계정 = 한 명의 member"로 연결(가입 승인 시 member 생성)이 필요하다. 공지는 운영자 공지와 같은 데이터(`operatorApi.listOperatorNotices` 계열, 스태프용 audience STAFF).
-- 그 다음 6단계: 백엔드 요청 문서에 스태프·통계·후원사 항목 추가, 린트·빌드, 이 문서 갱신.
-- 화면 확인법: `npm run dev -- --port 5199 --host 127.0.0.1` 후 주소 끝에 `?demo=1`(참여한 계정) / `?demo=2`(새 계정). 방문객 `/e/demo-event?demo=1`, 운영자 `/operator/home?demo=1`, 주최자 `/organizer/staff?demo=1`.
-  헤드리스 캡처: `chrome --headless=new --window-size=620,1000 --virtual-time-budget=8000 --screenshot=파일 URL`.
-- 공용 조각: `components/mobile/`(MobileLayout, MobileUi, MobileFooter, MIcon, mobile.css의 mb-*), `utils/useAsync.js`, `utils/mobileFormat.js`, `utils/demo.js`.
-- 주의: Bash 도구에서 큰 heredoc이 깨질 수 있으니 파일은 Write 도구로 만든다. 데모 모드는 `api/client.js`가 서버 호출을 막고 `EventProvider`가 샘플 행사를 준다.
-- 커밋은 로컬에만(푸시는 사용자가 요청할 때).
+**0~6단계 모두 끝났습니다** (로컬 커밋만, 푸시 안 함). 남은 일은 "다듬기"와 "백엔드가 생기면 연결"뿐입니다.
+
+### 바로 할 수 있는 다음 작업
+1. 사용자 확인 후 푸시 요청이 오면 `git push origin main` (프론트 저장소 frontend).
+2. 사용자가 와이어프레임과 다른 점을 지적하면 해당 화면만 수정 (화면 위치는 아래 표).
+3. 백엔드에 API가 생기면 `docs/BACKEND_REQUESTS.md` 항목 순서대로 연결 — 각 `src/api/*Api.js`/`src/dummy/*.js`의 함수 본문만 교체 (모양은 그대로).
+
+### 화면 위치
+| 앱 | 주소 | 파일 |
+|---|---|---|
+| 방문객 | `/e/:eventId/...` | `src/pages/visitor/`, 데이터 `src/api/visitorApi.js` |
+| 부스 운영자 | `/operator/...`, `/invite/:code` | `src/pages/operator/`, `src/api/operatorApi.js` |
+| 스태프 | `/staff/...`, `/invite/staff/:token` | `src/pages/staff/`, `src/api/staffApi.js`, `src/dummy/staffStore.js` |
+| 주최자 스태프·통계 | `/organizer/staff`, `/organizer/stats` | `src/pages/OrganizerStaffPage.jsx`, `OrganizerStatsPage.jsx`, `src/dummy/*` |
+| 공통 모바일 틀 | | `src/components/mobile/` |
+
+### 알려진 한계 / 결정해 둔 것 (사용자에게 확인받을 것)
+- 부스 사진·운영 시간·SNS·후원사·광고·결제 내역·신청서 추가 항목은 서버에 없어 자리만 있거나 샘플(`?demo=1`)로만 보임.
+- 재고 단계는 서버 값(충분·부족·품절·무제한)만 씀. 와이어프레임의 "중간"은 없음.
+- 스태프 가입은 서버에 STAFF가 없어서 OPERATOR로 가입시킨 뒤 이 브라우저에 STAFF로 기억함 → 다른 브라우저에서는 역할을 모름.
+- 가입 유형 선택 모달의 스태프 아이콘은 주최자 아이콘과 같은 임시 그림.
+- 정산 관리는 "준비중" 그대로. 알림(종 아이콘)은 공지로 이동만 함.
+- 행사 개설은 서버에 만들 수 없어 임시 행사(브라우저 저장)로 대시보드를 봄 → BACKEND_REQUESTS 1번.
+
+### 확인 방법
+`npm run dev -- --port 5199 --host 127.0.0.1` 후 주소 끝에 `?demo=1`(참여한 계정) / `?demo=2`(새 계정) / `?demo=0`(끄기).
+헤드리스 캡처: `chrome --headless=new --window-size=620,1000 --virtual-time-budget=8000 --screenshot=파일 URL` (주최자 화면은 1500x1000).
+
+### 공용 조각
+`components/mobile/`(MobileLayout, MobileUi, MobileFooter, MIcon, mobile.css의 mb-*), `utils/useAsync.js`, `utils/mobileFormat.js`, `utils/demo.js`.
+
+### 주의
+Bash 도구에서 큰 heredoc이 깨질 수 있으니 파일은 Write 도구로 만든다. 데모 모드는 `api/client.js`가 서버 호출을 막고 `EventProvider`가 샘플 행사를 준다.

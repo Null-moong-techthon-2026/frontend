@@ -1,0 +1,362 @@
+/* Staff app screens (/staff/...). Class prefix: sa- (shared pieces: components/mobile, visitor.css, operator.css) */
+@import '../operator/operator.css';
+
+.sa-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #eef4f1;
+  color: var(--mb-primary);
+}
+.sa-icon.is-red {
+  background: #f6e3de;
+  color: var(--mb-danger);
+}
+.sa-code {
+  height: 54px;
+  margin-top: 4px;
+  border-color: var(--mb-primary);
+  border-width: 2px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.sa-caption {
+  margin: 10px 0 0;
+}
+.sa-text-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: var(--mb-soft);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* event row */
+.sa-event {
+  display: grid;
+  gap: 12px;
+}
+.sa-event-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sa-event-row > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.sa-event-row strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+.sa-event-row small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+.sa-event-pic {
+  flex: none;
+  width: 72px;
+}
+.sa-event-pic .mb-pic {
+  margin: 0;
+  aspect-ratio: 1;
+  border-radius: 10px;
+}
+.sa-event-title {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sa-role {
+  color: var(--mb-primary) !important;
+  font-weight: 800;
+}
+
+/* steps */
+.sa-steps {
+  display: grid;
+  gap: 16px;
+  margin: 0 0 12px;
+  list-style: none;
+}
+.sa-steps li {
+  display: flex;
+  gap: 12px;
+}
+.sa-steps i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #d5dfdb;
+}
+.sa-steps .is-done i {
+  background: var(--mb-primary);
+}
+.sa-steps .is-now i {
+  background: #c6e56a;
+}
+.sa-steps span {
+  display: grid;
+  gap: 2px;
+}
+.sa-steps small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+
+/* join (role choice) */
+.sa-role-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.sa-role-card.is-on {
+  border-color: var(--mb-primary);
+  background: #f1f8f5;
+}
+.sa-role-card span {
+  display: grid;
+  gap: 2px;
+}
+.sa-role-card small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+
+/* clock-in / numbers */
+.sa-clock {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+.sa-clock span {
+  display: grid;
+  gap: 2px;
+}
+.sa-clock small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+.sa-clock b {
+  font-size: 18px;
+  font-weight: 900;
+}
+.mb-card.sa-clock {
+  margin-bottom: 12px;
+}
+
+/* today's list */
+.sa-today {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.sa-today li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sa-today i {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--mb-primary);
+}
+.sa-today li > span {
+  flex: 1;
+  display: grid;
+  gap: 1px;
+}
+.sa-today small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+.sa-today b {
+  font-size: 13px;
+  color: var(--mb-primary);
+}
+
+/* schedule */
+.sa-days {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sa-days button {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border: 1px solid var(--mb-border);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--mb-ink);
+  cursor: pointer;
+}
+.sa-days button.is-active {
+  background: var(--mb-primary);
+  border-color: var(--mb-primary);
+  color: #fff;
+}
+.sa-days b {
+  font-size: 15px;
+}
+.sa-days small {
+  font-size: 11px;
+}
+.sa-day-head .mb-h3 {
+  margin: 4px 0 10px;
+}
+.sa-timeline {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sa-timeline > li {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 8px;
+}
+.sa-timeline time {
+  padding-top: 14px;
+  color: var(--mb-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+.sa-timeline .mb-card {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  border-left: 3px solid var(--mb-primary);
+}
+.sa-timeline small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+.sa-time {
+  color: var(--mb-primary);
+  font-size: 13px;
+}
+.sa-timeline .is-break .mb-card {
+  border-left-color: #cfd9d5;
+  background: #f4f7f6;
+  font-size: 13px;
+}
+.sa-timeline .is-end {
+  align-items: center;
+}
+.sa-timeline .is-end time {
+  padding: 0;
+}
+.sa-mates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.sa-mates button {
+  padding: 5px 10px;
+  border: 1px solid var(--mb-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--mb-ink);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* bottom sheet / popup */
+.sa-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(23, 59, 53, 0.45);
+}
+.sa-sheet-box {
+  display: grid;
+  gap: 14px;
+  width: min(360px, 100%);
+  padding: 20px;
+  background: #fff;
+  border-radius: 16px;
+}
+.sa-sheet-box .mb-btn {
+  text-decoration: none;
+}
+.sa-x {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: none;
+  font-size: 22px;
+  cursor: pointer;
+}
+.sa-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--mb-primary);
+}
+.sa-who b {
+  color: var(--mb-ink);
+  font-size: 18px;
+}
+.sa-role-tag {
+  margin-left: -4px;
+  color: var(--mb-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* profile / records */
+.sa-kv {
+  margin-top: 12px;
+}
+.sa-contact {
+  margin-top: 4px;
+}
+.sa-sub-h {
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.sa-assigned {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.sa-assigned li {
+  display: flex;
+  justify-content: space-between;
+}
+
+.sa-more {
+  align-self: center;
+  color: var(--mb-soft);
+  font-size: 12px;
+}

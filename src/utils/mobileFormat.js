@@ -53,6 +53,13 @@ export function daysUntil(dateLike, now = new Date()) {
   return Math.round((day - today) / 86400000)
 }
 
+// 'D-2' ('D-day' on the last day)
+export function dDayLabel(dateLike) {
+  const days = daysUntil(dateLike)
+  if (days === null) return ''
+  return days <= 0 ? 'D-day' : `D-${days}`
+}
+
 // 5000 -> '5,000원'; null -> ''
 export const won = (n) => (n == null ? '' : `${Number(n).toLocaleString('ko-KR')}원`)
 

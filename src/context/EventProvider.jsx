@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as eventApi from '../api/eventApi'
 import { DUMMY_EVENT_PREFIX, getDummyEvent, updateDummyEvent } from '../api/eventApplicationApi'
 import { endOfLocalDate, startOfLocalDate } from '../utils/date'
+import { DEMO_EVENT } from '../dummy/demoData'
+import { isDemo } from '../utils/demo'
 import { toEvent } from '../utils/event'
 import { EventContext } from './EventContext'
 import { useAuth } from './useAuth'
@@ -20,7 +22,18 @@ import { useAuth } from './useAuth'
 export default function EventProvider({ children }) {
   const { user } = useAuth()
   const userId = user?.id ?? null
-  const [loaded, setLoaded] = useState({ userId: null, status: 'loading', event: null, error: null })
+  // Preview mode (?demo=1): the sample event, no backend.
+  const [demo] = useState(isDemo)
+  const [loaded, setLoaded] = useState(() =>
+    demo
+      ? {
+          userId,
+          status: 'ready',
+          error: null,
+          event: { ...DEMO_EVENT, publicationStatus: 'PUBLISHED', revision: 0, imageAssetId: null, visitorUrl: `${window.location.origin}/e/${DEMO_EVENT.id}` },
+        }
+      : { userId: null, status: 'loading', event: null, error: null },
+  )
   const [version, setVersion] = useState(0) // bump to load the events again
   const eventRef = useRef(null)
 
@@ -30,7 +43,7 @@ export default function EventProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    if (!userId) return
+    if (!userId || demo) return
     let alive = true
     eventApi
       .listMyEvents('ORGANIZER', 0, 20)
@@ -46,7 +59,7 @@ export default function EventProvider({ children }) {
     return () => {
       alive = false
     }
-  }, [userId, version])
+  }, [userId, version, demo])
 
   const current = userId && loaded.userId === userId ? loaded : null
   const status = !userId ? 'idle' : (current?.status ?? 'loading')

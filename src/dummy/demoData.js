@@ -143,3 +143,98 @@ export const DEMO_AD = {
   linkLabel: '현장 혜택 확인하기',
   url: 'https://example.com',
 }
+
+// ---- booth operator ----
+
+const inDays = (n) => new Date(Date.now() + n * 86400000).toISOString()
+
+// Events that are recruiting booths (public list + each one's recruitment notice).
+export const DEMO_RECRUITING = [
+  {
+    event: { ...DEMO_EVENT, id: 'demo-event' },
+    recruitment: {
+      closesAt: inDays(2),
+      targetBoothCount: 30,
+      participationFeeKrw: 150000,
+      feeNote: '납부 방식과 시기는 승인된 운영자에게 별도 안내',
+      allowedCategoryCodes: ['FOOD', 'BEVERAGE', 'EXPERIENCE', 'GOODS'],
+      introduction: '먹거리와 체험, 다양한 굿즈가 함께하는 비룡제입니다. 방문객에게 즐거운 경험을 전할 부스를 모집합니다.',
+      documentRequirements: [
+        { id: 'doc-1', name: '운영계획서', isRequired: true, applicableCategoryCodes: [] },
+        { id: 'doc-2', name: '보건증 (음식·음료 부스 필수)', isRequired: true, applicableCategoryCodes: ['FOOD', 'BEVERAGE'] },
+      ],
+    },
+  },
+  {
+    event: {
+      id: 'demo-event-2',
+      name: '인천 로컬마켓',
+      organizationName: '인천 로컬마켓 운영단',
+      startDate: '2026-11-07',
+      endDate: '2026-11-08',
+      venue: '인천 송도 센트럴파크',
+      intro: '지역 소상공인과 함께하는 주말 마켓입니다.',
+      imageUrl: null,
+    },
+    recruitment: {
+      closesAt: inDays(7),
+      targetBoothCount: 20,
+      participationFeeKrw: 80000,
+      feeNote: '',
+      allowedCategoryCodes: ['FOOD', 'BEVERAGE', 'GOODS'],
+      introduction: '지역의 맛과 멋을 전할 셀러를 모집합니다.',
+      documentRequirements: [{ id: 'doc-3', name: '사업자등록증', isRequired: false, applicableCategoryCodes: [] }],
+    },
+  },
+  {
+    event: {
+      id: 'demo-event-3',
+      name: '가을 청년 페스타',
+      organizationName: '청년 문화 협동조합',
+      startDate: '2026-11-14',
+      endDate: '2026-11-15',
+      venue: '인천 문화예술회관 광장',
+      intro: '청년 창작자들의 가을 축제입니다.',
+      imageUrl: null,
+    },
+    recruitment: {
+      closesAt: inDays(12),
+      targetBoothCount: 40,
+      participationFeeKrw: 100000,
+      feeNote: '',
+      allowedCategoryCodes: ['FOOD', 'EXPERIENCE', 'GOODS', 'GAME'],
+      introduction: '청년 창작자와 함께할 부스를 모집합니다.',
+      documentRequirements: [],
+    },
+  },
+]
+
+export const DEMO_PROFILES = [
+  { id: 'demo-profile-1', name: '달빛 떡볶이', categoryCode: 'FOOD', introduction: '매콤달콤한 떡볶이와 따뜻한 어묵을 판매합니다.', revision: 0 },
+]
+
+export const DEMO_MY_APPLICATIONS = [
+  {
+    applicationId: 'demo-app-1',
+    eventId: 'demo-event',
+    eventName: '비룡제 2026',
+    boothName: '달빛 떡볶이',
+    categoryCode: 'FOOD',
+    reviewStatus: 'APPROVED',
+    submittedAt: '2026-10-26T10:00:00+09:00',
+    rejectionReason: null,
+    eventBoothId: 'demo-booth-1',
+    boothCode: '1',
+  },
+]
+
+// The operator's own booth (the first of the sample booths) with the event it belongs to.
+export const DEMO_MY_BOOTH = {
+  eventBoothId: 'demo-booth-1',
+  revision: 0,
+  event: DEMO_EVENT,
+}
+
+export const DEMO_PAYMENTS = [
+  { id: 'pay-1', eventName: '비룡제 2026', label: '입점비 · 수수료', amountKrw: 157500, status: '결제 완료', paidAt: '2026-10-26' },
+]

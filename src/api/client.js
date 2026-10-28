@@ -6,6 +6,8 @@
 //   dropped whenever the backend rotates it (login / logout) or rejects it (403).
 // - Errors are thrown as ApiError with the backend's error `code` (e.g. LOGIN_ID_TAKEN).
 
+import { isDemo } from '../utils/demo'
+
 export class ApiError extends Error {
   constructor(status, code, message) {
     super(message)
@@ -46,6 +48,8 @@ async function ensureCsrf(force = false) {
 }
 
 async function send(path, { method = 'GET', body } = {}, retried = false) {
+  // Preview mode (?demo=1) never talks to the backend.
+  if (isDemo()) throw new ApiError(404, 'DEMO_MODE', '미리보기 모드에서는 서버에 연결하지 않아요.')
   // The dummy event (api/eventApplicationApi.js) does not exist on the backend: do not ask it.
   if (path.includes('/events/dummy-event-')) {
     throw new ApiError(404, 'DUMMY_EVENT', '임시 행사예요. 이 기능은 서버에 행사가 만들어진 뒤에 쓸 수 있어요.')

@@ -62,6 +62,33 @@ export function StockChip({ status }) {
   return <span className={`mb-chip${tone}`}>{STOCK_LEVEL_LABEL[status] ?? ''}</span>
 }
 
+// A small picture of the floor plan with one booth's pin on it (placement = a booth's map position).
+export function MiniMap({ placement, label }) {
+  if (!placement) return null
+  return (
+    <div className="mb-minimap" style={{ aspectRatio: `${placement.widthPx} / ${placement.heightPx}` }}>
+      <img src={placement.imageUrl} alt="행사장 평면도" draggable={false} />
+      <span className="mb-minimap-pin" style={{ left: `${placement.xRatio * 100}%`, top: `${placement.yRatio * 100}%` }}>
+        <MIcon name="pin" size={26} />
+        {label && <b>{label}</b>}
+      </span>
+    </div>
+  )
+}
+
+// "운영본부 연락": calls the event's phone number; says so when none is registered yet.
+export function ContactHqButton({ phone, className = 'mb-btn is-outline' }) {
+  const call = () => {
+    if (phone) window.location.href = `tel:${phone.replaceAll('-', '')}`
+    else window.alert('운영본부 연락처가 아직 등록되지 않았어요.')
+  }
+  return (
+    <button type="button" className={className} onClick={call}>
+      운영본부 연락
+    </button>
+  )
+}
+
 export function LoadingBlock({ error, onRetry, children = '불러오는 중…' }) {
   if (error) {
     return (

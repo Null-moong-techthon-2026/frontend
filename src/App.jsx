@@ -22,6 +22,20 @@ import VisitorInfo from './pages/visitor/VisitorInfo'
 import VisitorNotices from './pages/visitor/VisitorNotices'
 import VisitorNoticeDetail from './pages/visitor/VisitorNoticeDetail'
 import VisitorSponsors from './pages/visitor/VisitorSponsors'
+import OperatorLayout from './pages/operator/OperatorLayout'
+import OperatorHome from './pages/operator/OperatorHome'
+import OperatorRecruits from './pages/operator/OperatorRecruits'
+import OperatorRecruitDetail from './pages/operator/OperatorRecruitDetail'
+import OperatorApply from './pages/operator/OperatorApply'
+import OperatorInvite from './pages/operator/OperatorInvite'
+import OperatorBooth from './pages/operator/OperatorBooth'
+import OperatorMenu from './pages/operator/OperatorMenu'
+import OperatorBoothEdit from './pages/operator/OperatorBoothEdit'
+import { OperatorNoticeDetail, OperatorNotices } from './pages/operator/OperatorNotices'
+import OperatorProfile from './pages/operator/OperatorProfile'
+import OperatorProfileBooth from './pages/operator/OperatorProfileBooth'
+import OperatorAccount from './pages/operator/OperatorAccount'
+import InviteLanding from './pages/operator/InviteLanding'
 import AuthProvider from './context/AuthProvider'
 import RequireAuth from './components/RequireAuth'
 import RequireEvent from './components/RequireEvent'
@@ -77,6 +91,24 @@ function App() {
       {/* Everything under /organizer needs a logged-in user (RequireAuth sends others to /login)
           and an event (RequireEvent lets the organizer create the first one). */}
       <Route element={<RequireAuth />}>
+        {/* Booth operators (mobile screens). /invite/:code is the link organizers send them. */}
+        <Route path="/invite/:code" element={<InviteLanding />} />
+        <Route path="/operator" element={<OperatorLayout />}>
+          <Route index element={<Navigate to="home" replace />} />
+          <Route path="home" element={<OperatorHome />} />
+          <Route path="recruits" element={<OperatorRecruits />} />
+          <Route path="recruits/:eventId" element={<OperatorRecruitDetail />} />
+          <Route path="recruits/:eventId/apply" element={<OperatorApply />} />
+          <Route path="invite" element={<OperatorInvite />} />
+          <Route path="booth" element={<OperatorBooth />} />
+          <Route path="booth/menu" element={<OperatorMenu />} />
+          <Route path="booth/edit" element={<OperatorBoothEdit />} />
+          <Route path="notices" element={<OperatorNotices />} />
+          <Route path="notices/:noticeId" element={<OperatorNoticeDetail />} />
+          <Route path="profile" element={<OperatorProfile />} />
+          <Route path="profile/booth" element={<OperatorProfileBooth />} />
+          <Route path="profile/account" element={<OperatorAccount />} />
+        </Route>
         {/* 행사 개설 신청: needs a login, but not an event (it is how an organizer gets one). */}
         <Route path="/apply" element={<EventApplyPage />} />
         <Route element={<RequireEvent />}>

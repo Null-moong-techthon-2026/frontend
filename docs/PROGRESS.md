@@ -28,14 +28,17 @@ Figma 와이어프레임(주최자 웹 + 부스 운영자/스태프/방문객 �
 | 0 | 이 문서, 백엔드 요청 문서, 메모리 | ✅ |
 | 1 | 기반: 데모 모드, 역할(스태프 추가), 회원가입 3유형, 로그인 후 역할별 이동, 모바일 틀 | ✅ (라우트는 만든 단계에서 추가) |
 | 2 | 방문객 화면(홈·부스·부스 상세·지도·행사 정보·공지·공지 상세·후원사) | ✅ (`/e/:eventId`, `?demo=1`로 확인) |
-| 3 | 부스 운영자 화면(홈·부스 모집·공고 상세·신청서·내 부스·메뉴 재고·부스 정보 수정·공지·프로필·초대 코드) | ⬜ |
+| 3 | 부스 운영자 화면(홈·부스 모집·공고 상세·신청서·내 부스·메뉴 재고·부스 정보 수정·공지·프로필·초대 코드) | ✅ (`/operator/...`, `/invite/:code`, `?demo=1` 참여 후 / `?demo=2` 새 계정) |
 | 4 | 주최자: 사이드바에 스태프·통계 추가, 스태프(명단·근무표·실시간 현황·팝업), 통계 | ⬜ |
 | 5 | 스태프 모바일(초대 코드·역할 선택·승인 대기·홈·일정·공지·프로필·개인정보 수정·근무 기록) | ⬜ |
 | 6 | 마무리: 백엔드 요청 문서 정리, 린트·빌드, 이 문서 갱신 | ⬜ |
 
 ## 어디서부터 이어서?
-- 완료: 0~2단계. 방문객 화면은 `src/pages/visitor/`, 데이터는 `src/api/visitorApi.js`, 샘플은 `src/dummy/demoData.js`.
-- 다음: **3단계 부스 운영자 화면** (`/operator/...`). `src/pages/operator/`에 만들고 App.jsx에 라우트 추가.
-- 화면 확인법: `npm run dev` 후 주소 끝에 `?demo=1` (예: `/e/demo-event?demo=1`). 헤드리스 캡처는 Chrome `--headless=new --screenshot` 사용.
-- 만들 때 쓰는 공용 조각: `components/mobile/` (MobileLayout, MobileUi, MobileFooter, mobile.css의 mb-* 클래스), `utils/useAsync.js`, `utils/mobileFormat.js`.
-- 주의: Bash 도구에서 큰 heredoc이 깨질 수 있으니 파일은 Write 도구로 만든다.
+- 완료: 0~3단계. 운영자 화면은 `src/pages/operator/`, 데이터는 `src/api/operatorApi.js`.
+- 다음: **4단계 주최자 스태프·통계** — `components/OrganizerLayout.jsx`의 NAV에 스태프·통계 항목 추가(지금 NAV: 대시보드·지도 제작·부스 관리·부스 모집·실시간 운영 현황·공지사항·정산 관리; 와이어프레임 순서는 ...실시간 운영 현황·**스태프**·공지사항·정산 관리·**통계**), `src/pages/OrganizerStaffPage.jsx`(명단/근무표/실시간 현황 3탭 + 팝업 3개), `OrganizerStatsPage.jsx`. 백엔드가 없으니 더미(`src/dummy/staffData.js`)로.
+- 그 다음 5단계 스태프 모바일(`/staff/...`), 6단계 마무리.
+- 화면 확인법: `npm run dev -- --port 5199 --host 127.0.0.1` 후 주소 끝에 `?demo=1`(참여한 계정) / `?demo=2`(새 계정). 방문객 `/e/demo-event?demo=1`, 운영자 `/operator/home?demo=1`.
+  헤드리스 캡처: `chrome --headless=new --window-size=620,1000 --virtual-time-budget=8000 --screenshot=파일 URL`.
+- 공용 조각: `components/mobile/`(MobileLayout, MobileUi, MobileFooter, MIcon, mobile.css의 mb-*), `utils/useAsync.js`, `utils/mobileFormat.js`, `utils/demo.js`.
+- 주의: Bash 도구에서 큰 heredoc이 깨질 수 있으니 파일은 Write 도구로 만든다. 데모 모드는 `api/client.js`가 서버 호출을 막고 `EventProvider`가 샘플 행사를 준다.
+- 커밋은 로컬에만(푸시는 사용자가 요청할 때).

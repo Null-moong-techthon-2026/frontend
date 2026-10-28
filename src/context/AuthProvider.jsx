@@ -11,22 +11,24 @@ import { AuthContext } from './AuthContext'
 //   login(loginId, password)  throws ApiError on failure
 //   logout()                  always clears local state, even if the request fails
 export default function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [ready, setReady] = useState(false)
+  // Preview mode (?demo=1): shown as a logged-in demo account, without asking the backend.
+  const [demo] = useState(isDemo)
+  const [user, setUser] = useState(demo ? DEMO_USER : null)
+  const [ready, setReady] = useState(demo)
 
   // Restore the session after a page refresh.
   useEffect(() => {
+    if (demo) return
     let alive = true
     authApi
       .getMe()
       .then((me) => alive && setUser(me))
-      // Preview mode (?demo=1) shows the screens of an account without logging in.
-      .catch(() => alive && isDemo() && setUser(DEMO_USER))
+      .catch(() => {})
       .finally(() => alive && setReady(true))
     return () => {
       alive = false
     }
-  }, [])
+  }, [demo])
 
   // Session expired / ended elsewhere: any 401 on an authenticated call logs the UI out.
   useEffect(() => {

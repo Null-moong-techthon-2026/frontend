@@ -1,0 +1,239 @@
+import { useState } from 'react'
+import { Navigate, useNavigate, useOutletContext } from 'react-router-dom'
+import { addItem, changeBoothInfo, changeItem, getMyBoothDetail, removeItem, saveBoothHours } from '../../api/operatorApi'
+import MobileFooter from '../../components/mobile/MobileFooter'
+import MIcon from '../../components/mobile/MobileIcons'
+import { BoothThumb, LoadingBlock, MiniMap, OperationChip, StockChip } from '../../components/mobile/MobileUi'
+import { apiErrorMessage } from '../../constants/errors'
+import { boothSubtitle, hoursText, won } from '../../utils/mobileFormat'
+import { useAsync } from '../../utils/useAsync'
+import './operator.css'
+
+const TIMES = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`)
+const DEFAULT_HOURS = { start: '11:00', end: '21:00' }
+
+// 06-2 내 부스 정보 수정 · 부스 운영자 (정보 수정 / 미리보기)
+export default function OperatorBoothEdit() {
+  const { booth } = useOutletContext()
+  const { data: detail, error, reload, setData } = useAsync(() => (booth ? getMyBoothDetail(booth) : null), [booth?.id])
+  if (!booth) return <Navigate to="/operator/home" replace />
+  if (!detail) {
+    return (
+      <>
+        <BackRow />
+        <LoadingBlock error={error} onRetry={reload} />
+      </>
+    )
+  }
+  // The editor starts from the loaded booth; key it so a reload starts it fresh.
+  return <Editor key={`${detail.id}:${detail.revision}`} detail={detail} setData={setData} />
+}
+
+function BackRow() {
+  const navigate = useNavigate()
+  return (
+    <button type="button" className="mb-back" onClick={() => navigate('/operator/booth')}>
+      <MIcon name="back" size={18} />내 부스
+    </button>
+  )
+}
+
+function Editor({ detail, setData }) {
+  const [tab, setTab] = useState('edit')
+  const [name, setName] = useState(detail.name)
+  const [intro, setIntro] = useState(detail.intro)
+  const [hours, setHours] = useState(detail.hours ?? DEFAULT_HOURS)
+  const [rows, setRows] = useState(() =>
+    detail.items.map((i) => ({ key: i.id, id: i.id, name: i.name, price: i.priceKrw == null ? '' : String(i.priceKrw) })),
+  )
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const setRow = (key, fields) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...fields } : r)))
+  const addRow = () => setRows((list) => [...list, { key: `new-${Date.now()}`, id: null, name: '', price: '' }])
+  const removeRow = (key) => setRows((list) => list.filter((r) => r.key !== key))
+
+  const priceOk = (price) => /^\d*$/.test(price)
+  const invalid = !name.trim() || rows.some((r) => !r.name.trim() || !priceOk(r.price)) || hours.start >= hours.end
+
+  const save = async () => {
+    if (busy || invalid) return
+    setBusy(true)
+    setMessage('')
+    setSaved(false)
+    try {
+      let current = detail
+      if (name.trim() !== detail.name || intro !== detail.intro) {
+        current = await changeBoothInfo(detail, { name: name.trim(), description: intro })
+      }
+      const ref = { id: current.id, eventId: current.eventId, revision: current.revision }
+      saveBoothHours(detail.id, hours)
+
+      // Menu: deleted rows, changed rows, new rows - one write each.
+      const keep = new Set(rows.map((r) => r.id).filter(Boolean))
+      for (const item of detail.items.filter((i) => !keep.has(i.id))) current = await removeItem(ref, item)
+      for (const row of rows.filter((r) => r.id)) {
+        const item = detail.items.find((i) => i.id === row.id)
+        const priceKrw = row.price === '' ? null : Number(row.price)
+        if (item && (item.name !== row.name.trim() || item.priceKrw !== priceKrw)) {
+          current = await changeItem(ref, item, { name: row.name.trim(), priceKrw })
+        }
+      }
+      for (const [index, row] of rows.filter((r) => !r.id).entries()) {
+        current = await addItem(ref, { name: row.name.trim(), priceKrw: row.price === '' ? null : Number(row.price) }, detail.items.length + index)
+      }
+      setData(current)
+      setSaved(true)
+    } catch (err) {
+      setMessage(apiErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const preview = {
+    name: name.trim() || detail.name,
+    code: detail.code,
+    categoryCode: detail.categoryCode,
+    operationStatus: detail.operationStatus,
+    intro,
+    hours,
+    imageUrl: null,
+  }
+
+  return (
+    <>
+      <BackRow />
+      <h1 className="mb-title is-sm">내 부스 정보</h1>
+      <p className="mb-sub">방문객에게 보이는 정보를 관리하세요.</p>
+
+      <div className="mb-btn-row op-tabs">
+        <button type="button" className={`mb-btn is-sm ${tab === 'edit' ? 'is-primary' : 'is-outline'}`} onClick={() => setTab('edit')}>
+          정보 수정
+        </button>
+        <button type="button" className={`mb-btn is-sm ${tab === 'preview' ? 'is-primary' : 'is-outline'}`} onClick={() => setTab('preview')}>
+          미리보기
+        </button>
+      </div>
+
+      {tab === 'edit' ? (
+        <>
+          <div className="mb-card">
+            <div className="mb-card-row">
+              <h3>부스 위치</h3>
+              {detail.code && <span className="mb-link">{detail.code}번</span>}
+            </div>
+            {detail.placement ? (
+              <MiniMap placement={detail.placement} label={detail.code} />
+            ) : (
+              <p className="mb-muted">아직 지도에 배치되지 않았어요. 위치는 주최측이 정해요.</p>
+            )}
+          </div>
+
+          <div className="mb-field">
+            <label className="mb-label" htmlFor="booth-name">부스명</label>
+            <input id="booth-name" className="mb-input" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="mb-field">
+            <label className="mb-label" htmlFor="booth-intro">소개</label>
+            <textarea id="booth-intro" className="mb-textarea" value={intro} onChange={(e) => setIntro(e.target.value)} />
+          </div>
+          <div className="mb-field">
+            <span className="mb-label">운영 시간</span>
+            <div className="op-hours">
+              <label>
+                <small>시작</small>
+                <select className="mb-select" value={hours.start} onChange={(e) => setHours((h) => ({ ...h, start: e.target.value }))}>
+                  {TIMES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <small>종료</small>
+                <select className="mb-select" value={hours.end} onChange={(e) => setHours((h) => ({ ...h, end: e.target.value }))}>
+                  {TIMES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {hours.start >= hours.end && <p className="mb-error">종료 시간은 시작 시간보다 늦어야 해요.</p>}
+          </div>
+
+          <div className="mb-field">
+            <span className="mb-label">메뉴 · 가격</span>
+            {rows.map((row) => (
+              <div key={row.key} className="op-menu-row">
+                <input className="mb-input" placeholder="메뉴 이름" value={row.name} maxLength={100} onChange={(e) => setRow(row.key, { name: e.target.value })} />
+                <input className="mb-input op-price" placeholder="가격(원)" inputMode="numeric" value={row.price} onChange={(e) => setRow(row.key, { price: e.target.value })} />
+                <button type="button" className="op-trash" aria-label={`${row.name || '메뉴'} 삭제`} onClick={() => removeRow(row.key)}>
+                  ×
+                </button>
+              </div>
+            ))}
+            <button type="button" className="mb-btn is-outline is-sm" onClick={addRow}>
+              <MIcon name="plus" size={16} /> 메뉴 추가
+            </button>
+          </div>
+
+          <div className="mb-card op-photo">
+            <MIcon name="upload" size={20} />
+            <span>
+              <strong>부스 사진</strong>
+              <small>사진 올리기는 준비 중이에요.</small>
+            </span>
+          </div>
+        </>
+      ) : (
+        <Preview booth={preview} rows={rows} />
+      )}
+
+      {message && <p className="mb-error" role="alert">{message}</p>}
+      {saved && <p className="op-banner">저장했어요.</p>}
+      <MobileFooter>
+        <button type="button" className="mb-btn is-primary" disabled={busy || invalid} onClick={save}>
+          {busy ? '저장 중…' : '저장하기'}
+        </button>
+      </MobileFooter>
+    </>
+  )
+}
+
+// What the visitor will see (same layout as the visitor's booth screen).
+function Preview({ booth, rows }) {
+  return (
+    <div className="op-preview">
+      <BoothThumb booth={booth} className="is-hero" />
+      <div className="vs-title">
+        <h2 className="mb-title is-sm">{booth.name}</h2>
+        <OperationChip status={booth.operationStatus} />
+      </div>
+      <p className="mb-muted">{boothSubtitle(booth)}</p>
+      {booth.intro && <p className="vs-intro">{booth.intro}</p>}
+      <p className="vs-hours">
+        <MIcon name="clock" size={15} />
+        {hoursText(booth.hours)}
+      </p>
+      <div className="mb-card">
+        <h3>메뉴 · 상품</h3>
+        {rows.length === 0 ? (
+          <p className="mb-muted">등록된 메뉴가 없어요.</p>
+        ) : (
+          <ul className="vs-items">
+            {rows.map((r) => (
+              <li key={r.key}>
+                <span>
+                  <strong>{r.name || '(이름 없음)'}</strong>
+                  <small>{r.price ? won(Number(r.price)) : ''}</small>
+                </span>
+                <StockChip status="AVAILABLE" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -8,10 +8,13 @@
 //          status PENDING 승인 대기 | WORKING 근무 중 | WAITING 대기 중 | BREAK 휴식 중 | ABSENT 미출근 | REJECTED 거부
 //   duty   { id, name, zone, start, end }              'HH:mm' times
 //   shift  { id, date, dutyId, start, end, memberIds, roles }
+//   event      the organizer's event this data belongs to (null in preview mode: the sample event)
 //   accounts   { [accountId]: memberId }        which member a logged-in staff account is
 //   attendance { [memberId]: [{ date, in, out }] }   출근 / 퇴근 times ('HH:mm'; out is null until 퇴근)
 
 import { useSyncExternalStore } from 'react'
+import { isDemo } from '../utils/demo'
+import { DEMO_EVENT } from './demoData'
 
 export const STAFF_ROLE = { STAFF: 'STAFF', ADMIN: 'ADMIN', LABOR: 'LABOR', VOLUNTEER: 'VOLUNTEER' }
 export const STAFF_ROLE_LABEL = { STAFF: '스태프', ADMIN: '관리자', LABOR: '근로', VOLUNTEER: '봉사' }
@@ -35,7 +38,9 @@ export const STAFF_STATUS_LABEL = {
 
 export const STAFF_INVITE = { code: 'BL26-STF7', url: 'boothluck.kr/invite/staff/7Qm4xN', token: '7Qm4xN' }
 
+// Real use starts empty and keeps its own data; ?demo=1 preview mode has sample people and its own key.
 const KEY = 'boothluck.dummy.staff'
+const storageKey = () => (isDemo() ? `${KEY}.demo` : KEY)
 
 const DUTIES = [
   { id: 'duty-info', name: '행사 안내', zone: '운영본부', start: '14:00', end: '16:00' },
@@ -95,9 +100,9 @@ const EXTRA = Array.from({ length: 13 }, (_, i) => {
 })
 
 const SHIFT_DAYS = ['2026-11-02', '2026-11-03', '2026-11-04']
-const SHIFT_DATE = SHIFT_DAYS[0]
 
 const seed = () => {
+  if (!isDemo()) return { members: [], duties: [], shifts: [], accounts: {}, attendance: {}, event: null }
   const members = [...NAMED, ...EXTRA]
   const shifts = SHIFT_DAYS.flatMap((date, day) =>
     DUTIES.map((d) => ({
@@ -110,18 +115,21 @@ const seed = () => {
       roles: ['STAFF', 'LABOR', 'VOLUNTEER'],
     })),
   )
-  return { members, duties: DUTIES, shifts, accounts: {}, attendance: {} }
+  return { members, duties: DUTIES, shifts, accounts: {}, attendance: {}, event: null }
 }
 
 let state = null
+let stateKey = null
 const listeners = new Set()
 
 function load() {
-  if (state) return state
+  const key = storageKey()
+  if (state && stateKey === key) return state
+  stateKey = key
   try {
-    const stored = JSON.parse(localStorage.getItem(KEY))
+    const stored = JSON.parse(localStorage.getItem(key))
     if (stored?.members && stored?.duties && stored?.shifts) {
-      return (state = { accounts: {}, attendance: {}, ...stored })
+      return (state = { accounts: {}, attendance: {}, event: null, ...stored })
     }
   } catch {
     // fall through to the seed
@@ -132,7 +140,7 @@ function load() {
 function commit(next) {
   state = next
   try {
-    localStorage.setItem(KEY, JSON.stringify(next))
+    localStorage.setItem(storageKey(), JSON.stringify(next))
   } catch {
     // keep it in memory only
   }
@@ -149,6 +157,9 @@ export const useStaffData = () => useSyncExternalStore(subscribe, load, load)
 
 export const resetStaffData = () => commit(seed())
 
+// For code outside React (the api module).
+export const readStaffData = () => load()
+
 // ---- actions ----
 
 export const updateMember = (id, fields) =>
@@ -162,7 +173,7 @@ export function assignDuty(memberId, dutyId) {
   const current = load()
   const shifts = current.shifts.map((s) => {
     const without = s.memberIds.filter((x) => x !== memberId)
-    return s.dutyId === dutyId && s.date === SHIFT_DATE ? { ...s, memberIds: [...without, memberId] } : { ...s, memberIds: without }
+    return s.dutyId === dutyId && s.date === staffDays(current)[0] ? { ...s, memberIds: [...without, memberId] } : { ...s, memberIds: without }
   })
   commit({
     ...current,
@@ -210,7 +221,6 @@ export function countBy(members, key) {
   return counts
 }
 
-export { SHIFT_DAYS }
 
 // ---- the staff app (a logged-in staff account is one member) ----
 
@@ -285,13 +295,16 @@ const todayYmd = () => {
 }
 
 // The day the app shows as "오늘": today when it is an event day, else the first event day.
-export const scheduleDay = () => (SHIFT_DAYS.includes(todayYmd()) ? todayYmd() : SHIFT_DAYS[0])
+export function scheduleDay(data) {
+  const days = staffDays(data)
+  return days.includes(todayYmd()) ? todayYmd() : days[0]
+}
 
 export const attendanceOn = (data, memberId, date) => (data.attendance[memberId] ?? []).find((a) => a.date === date) ?? null
 
 export function clockIn(memberId) {
   const current = load()
-  const date = scheduleDay()
+  const date = scheduleDay(current)
   const list = current.attendance[memberId] ?? []
   if (list.some((a) => a.date === date)) return
   commit({
@@ -303,7 +316,7 @@ export function clockIn(memberId) {
 
 export function clockOut(memberId) {
   const current = load()
-  const date = scheduleDay()
+  const date = scheduleDay(current)
   const list = current.attendance[memberId] ?? []
   commit({
     ...current,
@@ -332,4 +345,47 @@ export function cancelStaffJoin(accountId) {
   const { [accountId]: removed, ...accounts } = current.accounts
   void removed
   commit({ ...current, accounts, members: current.members.filter((x) => x.id !== id) })
+}
+
+// ---- the event and its days ----
+
+// The event these people work at: the organizer's real event, or the sample one in preview mode.
+export const eventOf = (data) => data.event ?? DEMO_EVENT
+
+// The organizer's staff screen tells the store which event it manages (so staff accounts of the same
+// browser see its name and dates, and the schedule has the right days).
+export function setStaffEvent(event) {
+  const current = load()
+  const next = {
+    id: event.id,
+    name: event.name,
+    organizationName: event.organizationName ?? '',
+    startDate: event.startDate,
+    endDate: event.endDate,
+    venue: event.venue ?? '',
+    intro: event.intro ?? '',
+    imageUrl: event.imageUrl ?? null,
+    hours: null,
+    phone: null,
+    directions: null,
+  }
+  const old = current.event
+  if (old && Object.keys(next).every((k) => old[k] === next[k])) return
+  commit({ ...current, event: next })
+}
+
+const MAX_DAYS = 14
+
+// The days of the event ('YYYY-MM-DD'), at most two weeks; the sample days in preview mode.
+export function staffDays(data) {
+  const event = data.event
+  if (!event?.startDate || !event?.endDate) return SHIFT_DAYS
+  const days = []
+  const cursor = new Date(`${event.startDate}T00:00:00`)
+  const end = new Date(`${event.endDate}T00:00:00`)
+  while (cursor <= end && days.length < MAX_DAYS) {
+    days.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return days.length > 0 ? days : SHIFT_DAYS
 }

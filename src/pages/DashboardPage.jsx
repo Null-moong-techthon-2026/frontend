@@ -1,3 +1,4 @@
+import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getDashboard } from '../api/eventApi'
@@ -40,28 +41,6 @@ const withWeekday = (iso) => {
   return `${iso.replaceAll('-', '.')}(${WEEKDAYS[d.getDay()]})`
 }
 
-// Placeholder QR (a real QR image comes from the backend / a QR library later).
-function QrPlaceholder() {
-  return (
-    <svg className="db-qr" viewBox="0 0 64 64" aria-label="방문객용 QR 코드 (임시)" role="img">
-      <g fill="none" stroke="currentColor" strokeWidth="5">
-        <rect x="4" y="4" width="20" height="20" />
-        <rect x="40" y="4" width="20" height="20" />
-        <rect x="4" y="40" width="20" height="20" />
-      </g>
-      <g fill="currentColor">
-        <rect x="12" y="12" width="4" height="4" />
-        <rect x="48" y="12" width="4" height="4" />
-        <rect x="12" y="48" width="4" height="4" />
-        <rect x="40" y="40" width="8" height="8" />
-        <rect x="52" y="40" width="8" height="8" />
-        <rect x="40" y="52" width="8" height="8" />
-        <rect x="28" y="28" width="8" height="8" />
-      </g>
-    </svg>
-  )
-}
-
 function EventArt({ name, imageUrl }) {
   if (imageUrl) {
     return (
@@ -102,6 +81,7 @@ export default function DashboardPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [inviteBusy, setInviteBusy] = useState(false)
   const [dashboard, setDashboard] = useState(null) // { boothSummary, recentAnnouncements }
+  const [qrUrl, setQrUrl] = useState('') // the visitor link as a QR image (data URL)
   const progress = getEventProgress(event.startDate, event.endDate)
 
   useEffect(() => {
@@ -113,6 +93,17 @@ export default function DashboardPage() {
       alive = false
     }
   }, [event.id, notify])
+
+  // The QR code of the visitor link: made here, nothing to ask the backend.
+  useEffect(() => {
+    let alive = true
+    QRCode.toDataURL(event.visitorUrl, { margin: 1, width: 360, color: { dark: '#173b35', light: '#ffffff' } })
+      .then((url) => alive && setQrUrl(url))
+      .catch(() => alive && setQrUrl(''))
+    return () => {
+      alive = false
+    }
+  }, [event.visitorUrl])
 
   // Booth numbers come from the backend (approved + registered booths, archived ones excluded).
   const booths = dashboard?.boothSummary
@@ -186,6 +177,23 @@ export default function DashboardPage() {
     }
     setCopied(key)
     setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500)
+  }
+
+  // Copies the QR picture; browsers that cannot put an image on the clipboard get it as a file.
+  const copyQr = async () => {
+    if (!qrUrl) return
+    try {
+      const blob = await (await fetch(qrUrl)).blob()
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      setCopied('qr')
+      setTimeout(() => setCopied((c) => (c === 'qr' ? null : c)), 1500)
+    } catch {
+      const link = document.createElement('a')
+      link.href = qrUrl
+      link.download = `${event.name}-방문객-QR.png`
+      link.click()
+      notify('이미지로 저장했어요. 홍보물에 붙여 사용하세요.')
+    }
   }
 
   const copyLabel = (key, label) => (copied === key ? '복사됨' : label)
@@ -405,13 +413,15 @@ export default function DashboardPage() {
               <button type="button" className="db-outline-btn" onClick={() => copy('visitor', event.visitorUrl)}>
                 {copyLabel('visitor', '링크 복사')}
               </button>
-              {/* TODO(visitor app): generate the real QR image and copy it. */}
-              <button type="button" className="db-outline-btn">
-                QR 복사
+              <button type="button" className="db-outline-btn" disabled={!qrUrl} onClick={copyQr}>
+                {copyLabel('qr', 'QR 복사')}
               </button>
             </div>
+            {event.publicationStatus !== 'PUBLISHED' && (
+              <p className="db-hint is-warn">아직 공개 전이라 방문객 링크가 열리지 않아요. 부스 모집을 공개하면 열려요.</p>
+            )}
             <div className="db-qr-row">
-              <QrPlaceholder />
+              {qrUrl ? <img className="db-qr" src={qrUrl} alt="방문객용 QR 코드" /> : <span className="db-qr" aria-hidden="true" />}
               <div>
                 <strong>행사 홍보물에 QR을 붙여주세요.</strong>
                 <p>지도를 바로 열 수 있는 방문객용 QR입니다.</p>

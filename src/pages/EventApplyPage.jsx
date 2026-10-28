@@ -19,6 +19,7 @@ import {
 import { apiErrorMessage } from '../constants/errors'
 import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
+import { ROLE, rememberRole } from '../utils/role'
 import { normalizePhone, validateEmail, validatePhone } from '../utils/validators'
 import { useMyEventApplications } from '../utils/useMyEventApplications'
 import { useToast } from '../utils/useToast'
@@ -231,8 +232,27 @@ export default function EventApplyPage() {
 
       <main className="ap-main">
         <h1>행사 개설 신청</h1>
-        <p className="ap-lead">
-          행사 정보를 알려 주시면 담당자가 확인한 뒤 결과를 안내해 드려요. 승인되면 부스럭에서 행사를 열어 드려요.
+        <p className="ap-lead">행사 정보를 입력하면 바로 행사를 열어 대시보드에서 관리할 수 있어요.</p>
+        <p className="ap-switch">
+          부스 운영자나 스태프로 이용하시나요?{' '}
+          <button
+            type="button"
+            onClick={() => {
+              rememberRole(user.id, ROLE.OPERATOR)
+              navigate('/operator/home')
+            }}
+          >
+            부스 운영자로 계속
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              rememberRole(user.id, ROLE.STAFF)
+              navigate('/staff/home')
+            }}
+          >
+            스태프로 계속
+          </button>
         </p>
 
         {loading ? (

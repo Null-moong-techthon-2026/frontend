@@ -4,7 +4,7 @@ import { getStaffNotice, listStaffNotices } from '../../api/staffApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { ContactHqButton, LoadingBlock } from '../../components/mobile/MobileUi'
-import { DEMO_EVENT } from '../../dummy/demoData'
+import { eventOf } from '../../dummy/staffStore'
 import { longDateTime, shortDateTime } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './staff-app.css'
@@ -38,7 +38,7 @@ export function NeedApproval({ state, title }) {
 // 06 공지 · 스태프
 export function StaffNotices() {
   const navigate = useNavigate()
-  const { state } = useOutletContext()
+  const { state, data } = useOutletContext()
   const [filter, setFilter] = useState('all')
   const { data: notices, error, reload } = useAsync(listStaffNotices, [])
   if (state !== 'approved') return <NeedApproval state={state} title="공지" />
@@ -50,7 +50,7 @@ export function StaffNotices() {
   return (
     <>
       <h1 className="mb-title">공지</h1>
-      <p className="mb-sub">{DEMO_EVENT.name}의 운영 소식을 확인하세요.</p>
+      <p className="mb-sub">{eventOf(data).name}의 운영 소식을 확인하세요.</p>
       <div className="mb-seg">
         {FILTERS.map(([key, label]) => (
           <button key={key} type="button" className={filter === key ? 'is-active' : ''} onClick={() => setFilter(key)}>
@@ -84,7 +84,7 @@ export function StaffNotices() {
 export function StaffNoticeDetail() {
   const navigate = useNavigate()
   const { noticeId } = useParams()
-  const { state } = useOutletContext()
+  const { state, data } = useOutletContext()
   const { data: notice, error, reload } = useAsync(() => getStaffNotice(noticeId), [noticeId])
 
   const back = (
@@ -121,7 +121,7 @@ export function StaffNoticeDetail() {
         </div>
       )}
       <MobileFooter>
-        <ContactHqButton phone={DEMO_EVENT.phone} />
+        <ContactHqButton phone={eventOf(data).phone} />
       </MobileFooter>
     </>
   )

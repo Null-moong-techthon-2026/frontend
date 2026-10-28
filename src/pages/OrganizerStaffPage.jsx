@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import OrganizerLayout from '../components/OrganizerLayout'
+import { useEvent } from '../context/useEvent'
 import {
   STAFF_INVITE,
   STAFF_ROLE,
   STAFF_ROLE_LABEL,
   STAFF_STATUS,
   STAFF_STATUS_LABEL,
-  SHIFT_DAYS,
+  staffDays,
+  setStaffEvent,
   addDuty,
   addShift,
   approveMember,
@@ -20,6 +22,7 @@ import {
   updateMember,
   useStaffData,
 } from '../dummy/staffStore'
+import { isDemo } from '../utils/demo'
 import './staff.css'
 
 const TABS = [
@@ -50,6 +53,11 @@ const statusTone = (status) =>
 // 스태프 (organizer, web): 명단 / 근무표 / 실시간 현황 + their popups. Data: dummy/staffStore.js.
 export default function OrganizerStaffPage() {
   const data = useStaffData()
+  const { event } = useEvent()
+  // The staff data belongs to this event (its name and days show up in the staff app too).
+  useEffect(() => {
+    if (!isDemo()) setStaffEvent(event)
+  }, [event])
   const [params, setParams] = useSearchParams()
   const tab = TABS.some((t) => t[0] === params.get('tab')) ? params.get('tab') : 'roster'
   const setTab = (key) => setParams(key === 'roster' ? {} : { tab: key }, { replace: true })
@@ -130,7 +138,7 @@ function Roster({ data }) {
   const [role, setRole] = useState('')
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(0)
-  const [selectedId, setSelectedId] = useState('s01')
+  const [selectedId, setSelectedId] = useState(null)
 
   const people = data.members.filter((x) => x.status !== STAFF_STATUS.REJECTED)
   const roles = countBy(people, 'role')
@@ -141,7 +149,7 @@ function Roster({ data }) {
   )
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const shown = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  const selected = data.members.find((x) => x.id === selectedId)
+  const selected = data.members.find((x) => x.id === selectedId) ?? people[0]
 
   return (
     <>
@@ -260,7 +268,15 @@ function Roster({ data }) {
           </div>
           <small className="sf-hint">역할 · 업무 · 상태를 눌러 변경할 수 있어요.</small>
         </section>
-        {selected && <Detail key={selected.id} member={selected} data={data} />}
+        {selected ? (
+          <Detail key={selected.id} member={selected} data={data} />
+        ) : (
+          <aside className="sf-card sf-empty">
+            아직 스태프가 없어요.
+            <br />
+            '스태프 초대'로 초대 코드를 보내 보세요.
+          </aside>
+        )}
       </div>
     </>
   )
@@ -437,11 +453,12 @@ function DutyModal({ onClose }) {
 
 // ---------------------------------------------------------------- 근무표
 function Schedule({ data, onAdd }) {
-  const [day, setDay] = useState(SHIFT_DAYS[0])
+  const days = staffDays(data)
+  const [day, setDay] = useState(days[0])
   const [selectedId, setSelectedId] = useState(null)
   const rows = data.shifts.filter((s) => s.date === day)
   const selected = data.shifts.find((s) => s.id === selectedId) ?? rows[1] ?? rows[0] ?? null
-  const dayIndex = SHIFT_DAYS.indexOf(day)
+  const dayIndex = days.indexOf(day)
 
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
   const showNow = nowMin >= GRID_START && nowMin <= GRID_END
@@ -450,17 +467,17 @@ function Schedule({ data, onAdd }) {
     <div className="sf-split">
       <section className="sf-card">
         <div className="sf-toolbar">
-          <button type="button" className="sf-btn is-icon" disabled={dayIndex <= 0} onClick={() => setDay(SHIFT_DAYS[dayIndex - 1])} aria-label="이전 날짜">
+          <button type="button" className="sf-btn is-icon" disabled={dayIndex <= 0} onClick={() => setDay(days[dayIndex - 1])} aria-label="이전 날짜">
             ‹
           </button>
           <select className="sf-select" value={day} onChange={(e) => setDay(e.target.value)} aria-label="날짜">
-            {SHIFT_DAYS.map((d) => (
+            {days.map((d) => (
               <option key={d} value={d}>
                 {dayLabel(d)}
               </option>
             ))}
           </select>
-          <button type="button" className="sf-btn is-icon" disabled={dayIndex >= SHIFT_DAYS.length - 1} onClick={() => setDay(SHIFT_DAYS[dayIndex + 1])} aria-label="다음 날짜">
+          <button type="button" className="sf-btn is-icon" disabled={dayIndex >= days.length - 1} onClick={() => setDay(days[dayIndex + 1])} aria-label="다음 날짜">
             ›
           </button>
           <span className="sf-pill is-green">행사 {dayIndex + 1}일차</span>
@@ -590,8 +607,9 @@ function ShiftPanel({ shift, data }) {
 }
 
 function ShiftModal({ data, onClose }) {
+  const days = staffDays(data)
   const [mode, setMode] = useState('new')
-  const [form, setForm] = useState({ date: SHIFT_DAYS[0], start: '14:00', end: '16:00', zone: '', name: '', dutyId: data.duties[0]?.id ?? '', roles: [STAFF_ROLE.STAFF, STAFF_ROLE.LABOR] })
+  const [form, setForm] = useState({ date: days[0], start: '14:00', end: '16:00', zone: '', name: '', dutyId: data.duties[0]?.id ?? '', roles: [STAFF_ROLE.STAFF, STAFF_ROLE.LABOR] })
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
   const toggleRole = (r) => setForm((f) => ({ ...f, roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r] }))
   const ok = form.start < form.end && form.roles.length > 0 && (mode === 'existing' ? form.dutyId : form.zone.trim() && form.name.trim())
@@ -609,13 +627,13 @@ function ShiftModal({ data, onClose }) {
         <button type="button" className={mode === 'new' ? 'is-active' : ''} onClick={() => setMode('new')}>
           새 행 추가
         </button>
-        <button type="button" className={mode === 'existing' ? 'is-active' : ''} onClick={() => setMode('existing')}>
+        <button type="button" className={mode === 'existing' ? 'is-active' : ''} disabled={data.duties.length === 0} onClick={() => setMode('existing')}>
           기존 행에 시간 추가
         </button>
       </div>
       <label className="sf-label">날짜</label>
       <select className="sf-select" value={form.date} onChange={set('date')}>
-        {SHIFT_DAYS.map((d) => (
+        {days.map((d) => (
           <option key={d} value={d}>
             {dayLabel(d)}
           </option>

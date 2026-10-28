@@ -407,8 +407,8 @@
 }
 
 .db-qr {
-  width: 52px;
-  height: 52px;
+  width: 96px;
+  height: 96px;
   flex: none;
   color: var(--om-ink-soft);
 }
@@ -455,4 +455,12 @@
   .db-cards {
     grid-template-columns: 1fr;
   }
+}
+
+.db-hint.is-warn {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fbf3d9;
+  color: #7a5b12;
 }

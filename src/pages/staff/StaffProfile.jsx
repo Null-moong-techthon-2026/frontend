@@ -4,8 +4,7 @@ import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { ContactHqButton } from '../../components/mobile/MobileUi'
 import { useAuth } from '../../context/useAuth'
-import { DEMO_EVENT } from '../../dummy/demoData'
-import { STAFF_ROLE_LABEL, attendanceOn, dutyOf, myShifts, scheduleDay, updateProfile, workedMinutes } from '../../dummy/staffStore'
+import { STAFF_ROLE_LABEL, attendanceOn, dutyOf, eventOf, myShifts, scheduleDay, updateProfile, workedMinutes } from '../../dummy/staffStore'
 import { dateRange, dayTitle } from '../../utils/mobileFormat'
 import { normalizePhone, validateEmail, validatePhone } from '../../utils/validators'
 import { NeedApproval } from './StaffNotices'
@@ -22,7 +21,7 @@ export function StaffProfile() {
 
   const duty = dutyOf(data, me)
   const records = data.attendance[me.id] ?? []
-  const todayMin = workedMinutes(attendanceOn(data, me.id, scheduleDay()))
+  const todayMin = workedMinutes(attendanceOn(data, me.id, scheduleDay(data)))
   const totalMin = records.reduce((sum, r) => sum + workedMinutes(r), 0)
 
   return (
@@ -61,7 +60,7 @@ export function StaffProfile() {
           <dt>업무</dt>
           <dd>{duty?.name ?? '미배정'}</dd>
           <dt>참여 행사</dt>
-          <dd>{DEMO_EVENT.name}</dd>
+          <dd>{eventOf(data).name}</dd>
         </dl>
         <p className="mb-muted sa-caption">역할 · 업무 · 참여 행사는 주최자가 관리합니다.</p>
       </div>
@@ -86,7 +85,7 @@ export function StaffProfile() {
         {records.length === 0 && <p className="mb-muted sa-caption">아직 출퇴근 기록이 없습니다.</p>}
       </div>
 
-      <ContactHqButton phone={DEMO_EVENT.phone} className="mb-btn is-outline sa-contact" />
+      <ContactHqButton phone={eventOf(data).phone} className="mb-btn is-outline sa-contact" />
       <button
         type="button"
         className="op-logout"
@@ -162,7 +161,7 @@ function EditForm({ me, data, onDone }) {
           <dt>업무</dt>
           <dd>{duty?.name ?? '미배정'}</dd>
           <dt>참여 행사</dt>
-          <dd>{DEMO_EVENT.name}</dd>
+          <dd>{eventOf(data).name}</dd>
         </dl>
         <p className="mb-muted sa-caption">변경이 필요하면 주최측에 문의해 주세요.</p>
       </div>
@@ -194,7 +193,7 @@ export function StaffRecords() {
 
   const records = [...(data.attendance[me.id] ?? [])].sort((a, b) => b.date.localeCompare(a.date))
   const totalMin = records.reduce((sum, r) => sum + workedMinutes(r), 0)
-  const todayMin = workedMinutes(attendanceOn(data, me.id, scheduleDay()))
+  const todayMin = workedMinutes(attendanceOn(data, me.id, scheduleDay(data)))
 
   return (
     <>
@@ -205,8 +204,8 @@ export function StaffRecords() {
       <h1 className="mb-title is-sm">근무 기록</h1>
       <p className="mb-sub">내 출퇴근과 근무 시간 기록을 확인하세요.</p>
       <div className="mb-card">
-        <strong>{DEMO_EVENT.name}</strong>
-        <p className="mb-muted sa-caption">{dateRange(DEMO_EVENT.startDate, DEMO_EVENT.endDate)}</p>
+        <strong>{eventOf(data).name}</strong>
+        <p className="mb-muted sa-caption">{dateRange(eventOf(data).startDate, eventOf(data).endDate)}</p>
       </div>
       <div className="mb-card sa-clock">
         <span>
@@ -258,7 +257,7 @@ export function StaffRecords() {
         )
       })}
       <p className="mb-muted sa-caption">출퇴근 기록에 이상이 있으면 운영본부에 문의해 주세요.</p>
-      <ContactHqButton phone={DEMO_EVENT.phone} />
+      <ContactHqButton phone={eventOf(data).phone} />
     </>
   )
 }

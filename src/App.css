@@ -837,3 +837,13 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* "아이디 찾기" / "비밀번호 찾기" are buttons that look like the text links around them */
+button.auth-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

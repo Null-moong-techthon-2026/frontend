@@ -366,3 +366,20 @@
     padding: 20px 16px;
   }
 }
+
+.ap-switch {
+  margin: 0 0 22px;
+  color: var(--muted, #62756f);
+  font-size: 13px;
+}
+.ap-switch button {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #087f73;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}

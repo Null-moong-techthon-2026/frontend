@@ -40,7 +40,8 @@ function NoEvent() {
 
   if (kind === 'checking') return null
   // Operator and staff accounts have their own screens, not the organizer ones.
-  if (kind === 'operator' || kind === 'other-role') return <Navigate to={homePathFor(user)} replace />
+  if (kind === 'operator') return <Navigate to="/operator/home" replace />
+  if (kind === 'other-role') return <Navigate to={homePathFor(user)} replace />
   return kind === 'waiting' ? <EventPendingPage /> : <Navigate to="/apply" replace />
 }
 

@@ -4,7 +4,6 @@ import { listStaffNotices, resolveStaffInvite } from '../../api/staffApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { EventPicture } from '../../components/mobile/MobileUi'
-import { DEMO_EVENT } from '../../dummy/demoData'
 import {
   STAFF_ROLE_LABEL,
   attendanceOn,
@@ -12,6 +11,7 @@ import {
   clockIn,
   clockOut,
   dutyOf,
+  eventOf,
   myShifts,
   scheduleDay,
 } from '../../dummy/staffStore'
@@ -83,9 +83,9 @@ function EnterCode() {
 }
 
 function PendingHome() {
-  const { user, me } = useOutletContext()
+  const { user, me, data } = useOutletContext()
   const [checked, setChecked] = useState(false)
-  const event = DEMO_EVENT
+  const event = eventOf(data)
 
   return (
     <>
@@ -179,8 +179,8 @@ export function EventRow({ event }) {
 function ApprovedHome() {
   const navigate = useNavigate()
   const { me, data } = useOutletContext()
-  const event = DEMO_EVENT
-  const day = scheduleDay()
+  const event = eventOf(data)
+  const day = scheduleDay(data)
   const shifts = myShifts(data, me.id, day)
   const record = attendanceOn(data, me.id, day)
   const duty = dutyOf(data, me)

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { DEMO_EVENT } from '../../dummy/demoData'
-import { SHIFT_DAYS, STAFF_ROLE_LABEL, scheduleDay, myShifts } from '../../dummy/staffStore'
+import { STAFF_ROLE_LABEL, eventOf, myShifts, scheduleDay, staffDays } from '../../dummy/staffStore'
 import { dayTitle } from '../../utils/mobileFormat'
 import { NeedApproval } from './StaffNotices'
 import './staff-app.css'
@@ -20,7 +19,7 @@ const hoursText = (min) => {
 // 05 일정 · 스태프 (+ 05-1 함께 근무하는 스태프 팝업)
 export default function StaffSchedule() {
   const { state, me, data } = useOutletContext()
-  const [day, setDay] = useState(scheduleDay())
+  const [day, setDay] = useState(scheduleDay(data))
   const [together, setTogether] = useState(null) // the member whose card is open
 
   if (state !== 'approved') return <NeedApproval state={state} title="일정" />
@@ -41,9 +40,9 @@ export default function StaffSchedule() {
   return (
     <>
       <h1 className="mb-title">일정</h1>
-      <p className="mb-sub">{DEMO_EVENT.name} · 내 근무 일정을 확인하세요.</p>
+      <p className="mb-sub">{eventOf(data).name} · 내 근무 일정을 확인하세요.</p>
       <div className="sa-days">
-        {SHIFT_DAYS.map((d) => {
+        {staffDays(data).map((d) => {
           const c = dayChip(d)
           return (
             <button key={d} type="button" className={day === d ? 'is-active' : ''} onClick={() => setDay(d)}>

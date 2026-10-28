@@ -5,11 +5,20 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // The backend has no CORS configuration, so the dev server forwards /api to it. The browser
-    // then only talks to this origin, which keeps the session cookie first-party.
-    // Backend: `docker compose up -d --wait db` + `.\gradlew.bat bootRun` in backend-main.
+    // The browser only talks to this dev server, which forwards /api to the backend, so the session
+    // cookie stays first-party. Backend: `docker compose up -d --wait db` + `.\gradlew.bat bootRun`
+    // in backend-main.
     proxy: {
-      '/api': 'http://127.0.0.1:8080',
+      '/api': {
+        target: 'http://127.0.0.1:8080',
+        configure: (proxy) => {
+          // The backend's CORS filter only accepts the Origin http://127.0.0.1:5173 and answers
+          // anything else (e.g. http://localhost:5173) with 403 "Invalid CORS request". Through this
+          // proxy the call is same-origin for the browser, so drop the header: the page works from
+          // localhost and 127.0.0.1 alike.
+          proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'))
+        },
+      },
     },
   },
 })

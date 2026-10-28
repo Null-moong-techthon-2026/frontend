@@ -1,83 +1,98 @@
-// Data models shared between the UI and (future) backend. JSDoc only — no runtime code.
-// Full field notes: BACKEND_INTEGRATION.md
+// Data models the screens work with. JSDoc only — no runtime code.
+// The backend's own shapes are documented in src/api/*.js; the converters (utils/event.js toEvent,
+// utils/recruit.js toRecruit, utils/notice.js toNotice, context/MapProvider.jsx) turn them into the
+// models below. Field notes: BACKEND_INTEGRATION.md
+//
+// Code values are the backend's own (constants/booth.js, constants/map.js, constants/notice.js).
 
 /**
- * @typedef {'pending' | 'approved' | 'rejected'} BoothStatus   see BOOTH_STATUS
- * @typedef {'food' | 'drink' | 'experience' | 'goods'} BoothCategory   see BOOTH_CATEGORY
+ * @typedef {'PENDING' | 'APPROVED' | 'REJECTED'} ReviewStatus   see BOOTH_STATUS
+ * @typedef {'FOOD' | 'BEVERAGE' | 'EXPERIENCE' | 'GAME' | 'GOODS' | 'OTHER'} BoothCategory   see BOOTH_CATEGORY
+ * @typedef {'PREPARING' | 'OPEN' | 'SOLD_OUT' | 'CLOSED'} OperationStatus   see BOOTH_OPERATING_STATUS
+ * @typedef {'UNLIMITED' | 'AVAILABLE' | 'LOW' | 'SOLD_OUT'} StockLevel   see STOCK_LEVEL
+ * @typedef {'NOT_TRACKED' | StockLevel} StockSummary   a booth's whole stock in one word; see STOCK_SUMMARY
+ * @typedef {'NOT_SUBMITTED' | 'SUBMITTED' | 'VERIFIED' | 'NEEDS_CORRECTION'} DocumentCheckStatus   see DOCUMENT_CHECK
  *
- * @typedef {Object} Booth                    one booth application
- * @property {number} id                      unique booth id (pins reference it as boothId)
- * @property {string} name
- * @property {BoothCategory} category
- * @property {BoothStatus} status
- * @property {string} appliedAt               ISO date, YYYY-MM-DD
- * @property {number | null} boothNo          booth number, only while approved
- * @property {'preparing' | 'open' | 'soldout' | 'closed' | null} operatingStatus  day-of status; only approved booths have one (see BOOTH_OPERATING_STATUS)
- * @property {{ id: string, name: string, stock: StockLevel }[]} menus  menu items and their stock (see STOCK_LEVEL)
- * @property {string} statusChangedAt         'YYYY-MM-DDTHH:mm'; last time the operating status or a menu's stock changed
- * @property {string} intro                   운영 소개
- * @property {{ name: string, phone: string, email: string }} applicant
- * @property {{ id: string, name: string, url: string | null }[]} documents
- * @property {string} reviewMemo              organizer-only
- * @property {string} rejectReason            visible to organizer and booth operator
- *
- * @typedef {'booth' | 'toilet' | 'info' | 'medical' | 'etc'} PinType   see PIN_TYPE
- *
- * @typedef {'unlimited' | 'plenty' | 'low' | 'soldout'} StockLevel   see STOCK_LEVEL
- *
- * @typedef {Object} Pin                      one pin on the floor plan
- * @property {number} id
- * @property {PinType} type
- * @property {string} name                    booth name once assigned, otherwise ''
- * @property {number | null} boothId          Booth.id this pin is assigned to
- * @property {number} x                       pixels in the ORIGINAL image (0..floorplan.width)
- * @property {number} y                       pixels in the ORIGINAL image (0..floorplan.height)
- *
- * @typedef {'published' | 'closed' | 'draft'} NoticeStatus   see NOTICE_STATUS
- * @typedef {'staff' | 'booth' | 'visitor'} NoticeAudience   see NOTICE_AUDIENCE
- *
- * @typedef {Object} Notice                   one announcement
- * @property {number} id
- * @property {string} title
- * @property {string} body                    plain text; line breaks are kept
- * @property {{ id: string, name: string, size: number, url: string }[]} attachments  optional files (images shown inline)
- * @property {NoticeAudience[]} audiences     who can see it (at least one when published)
- * @property {boolean} urgent                 urgent notices sit at the top of the audience's list
- * @property {NoticeStatus} status
- * @property {string | null} publishedAt      'YYYY-MM-DDTHH:mm'; first time it went live
- * @property {string} updatedAt               'YYYY-MM-DDTHH:mm'
- *
- * @typedef {Object} Event                   the festival being managed (sidebar + dashboard).
+ * @typedef {Object} Event                    the festival being managed (sidebar + dashboard + every screen)
  *   Progress (진행 예정/진행 중/진행 종료) is not a field: derive it from the dates (utils/event.js).
+ * @property {string} id                      UUID; every event API call carries it
  * @property {string} name
- * @property {string} startDate               YYYY-MM-DD
- * @property {string} endDate                 YYYY-MM-DD
+ * @property {string} organizationName
+ * @property {string} startDate               local 'YYYY-MM-DD'
+ * @property {string} endDate                 local 'YYYY-MM-DD' (the whole day counts)
  * @property {string} venue
- * @property {string | null} imageUrl         cover image shown on the dashboard (placeholder when null)
  * @property {string} intro                   line breaks are kept
- * @property {string} recruitDeadline         'YYYY-MM-DDTHH:mm'
- * @property {number} recruitTarget           teams the organizer wants to recruit
- * @property {string} inviteCode              booth-operator invite code
- * @property {string} inviteUrl               booth-operator invite link
- * @property {string} visitorUrl              visitor link (also encoded in the QR)
+ * @property {string | null} imageUrl         cover image shown on the dashboard (placeholder when null)
+ * @property {string | null} imageAssetId     uploaded image the event links to
+ * @property {'DRAFT' | 'PUBLISHED' | 'ARCHIVED'} publicationStatus   only PUBLISHED events are visible to visitors
+ * @property {number} revision                sent back with every update
+ * @property {string} visitorUrl              visitor link (placeholder: there is no visitor screen yet)
  *
  * @typedef {Object} Recruitment              the booth-recruitment announcement (부스 모집)
- *   The deadline and target count are NOT here: they are Event.recruitDeadline / recruitTarget
- *   (the dashboard shows them too). Status (모집 중/모집 마감/비공개) is not a field either:
- *   it is derived from `published` and the deadline (utils/recruit.js).
+ *   Status (모집 중/모집 마감/비공개) is not a field: it is derived from `published` and `deadline`
+ *   (utils/recruit.js getRecruitStatus).
  * @property {boolean} published              visible to booth operators
- * @property {string} intro                   line breaks are kept (max 300)
- * @property {string | null} imageUrl         optional cover image
+ * @property {string} intro                   line breaks are kept (max 300 in the form)
  * @property {BoothCategory[]} categories     booth categories allowed to apply (at least one)
- * @property {string} feeInfo                 participation-fee text, e.g. '50,000원 / 부스'
- * @property {{ id: string, label: string, required: boolean }[]} documents  documents applicants submit
- * @property {string} contact                 inquiry contact, free text
+ * @property {number | null} feeKrw           participation fee in won; null = not set, 0 = free
+ * @property {string} feeNote                 fee remarks
+ * @property {{ id: string, label: string, required: boolean, categories: string[] }[]} documents
+ *   documents applicants submit; `id` is a server UUID, or 'new-N' before the first save
+ * @property {string} deadline                local 'YYYY-MM-DDTHH:mm', '' when not set
+ * @property {number | null} target           how many booths the organizer wants (a goal, not a limit)
+ * @property {number} revision
  *
- * @typedef {Object} Floorplan                uploaded floor-plan image
+ * @typedef {Object} ApplicationRow           one row of the 부스 관리 list (backend shape)
+ * @property {string} applicationId
+ * @property {string} boothName
+ * @property {string} submittedAt             ISO instant
+ * @property {BoothCategory} categoryCode
+ * @property {string} applicantName
+ * @property {ReviewStatus} reviewStatus
+ * @property {string | null} eventBoothId     set once approved
+ * @property {string | null} boothCode        'B001'… set once approved
+ *
+ * @typedef {Object} OperatingBooth           one row of the 실시간 운영 현황 list (backend shape)
+ * @property {string} eventBoothId
+ * @property {string} boothCode
+ * @property {string} name
+ * @property {BoothCategory} categoryCode
+ * @property {OperationStatus} operationStatus
+ * @property {StockSummary} stockSummary
+ * @property {'ASSIGNED' | 'UNASSIGNED'} placementStatus   on the published map or not
+ * @property {'HIDDEN' | 'PUBLIC' | 'ARCHIVED'} visibilityStatus
+ * @property {number} revision
+ *
+ * @typedef {'BOOTH' | 'TOILET' | 'INFO' | 'MEDICAL' | 'OTHER_FACILITY'} PinType   see PIN_TYPE
+ *
+ * @typedef {Object} Pin                      one pin on the floor plan (MapProvider)
+ * @property {string} id                      UUID made by the client
+ * @property {PinType} type
+ * @property {string} label                   booth code for booth pins, the facility name otherwise
+ * @property {string | null} boothId          event booth this pin is assigned to (booth pins only)
+ * @property {number} x                       pixels in the ORIGINAL image (0..image.width)
+ * @property {number} y                       pixels in the ORIGINAL image (0..image.height)
+ *
+ * @typedef {Object} Floorplan                the draft map's image (MapProvider `image`)
  * @property {string} url
  * @property {string} name
- * @property {number} width                   natural pixel width
- * @property {number} height                  natural pixel height
+ * @property {number} width                   pixel width of the image file
+ * @property {number} height                  pixel height of the image file
+ *
+ * @typedef {'published' | 'closed' | 'draft'} NoticeStatus   see NOTICE_STATUS
+ * @typedef {'STAFF' | 'OPERATORS' | 'PUBLIC'} NoticeAudience   see NOTICE_AUDIENCE
+ *
+ * @typedef {Object} Notice                   one announcement
+ * @property {string} id
+ * @property {string} title
+ * @property {string} body                    plain text; line breaks are kept ('' in list rows)
+ * @property {{ assetId: string, url: string } | null} image   optional single image (not in list rows)
+ * @property {NoticeAudience[]} audiences     who can see it (at least one when published)
+ * @property {boolean} urgent                 urgent notices sit at the top of the audience's list
+ * @property {NoticeStatus} status            'closed' = published once, now back to a draft
+ * @property {string | null} publishedAt      local 'YYYY-MM-DDTHH:mm'; first time it went live
+ * @property {string} updatedAt               local 'YYYY-MM-DDTHH:mm'
+ * @property {number} revision
  */
 
 export {}

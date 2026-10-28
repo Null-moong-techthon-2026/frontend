@@ -67,7 +67,7 @@ button.fm-pin {
 
 .fm-num {
   color: #fff;
-  font-size: 13px;
+  font-size: 10px; /* booth codes like B001 have four characters */
   font-weight: 800;
 }
 

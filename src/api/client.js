@@ -1,4 +1,4 @@
-// Thin fetch wrapper for the backend (auth only so far).
+// Thin fetch wrapper for the backend.
 //
 // - Calls go to same-origin `/api/...`; the Vite dev server proxies them to the backend
 //   (vite.config.js), so the session cookie is first-party and no CORS is needed.
@@ -47,7 +47,9 @@ async function ensureCsrf(force = false) {
 
 async function send(path, { method = 'GET', body } = {}, retried = false) {
   const headers = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  // FormData (file upload) sets its own multipart Content-Type, boundary included.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (method !== 'GET') {
     const { headerName, token } = await ensureCsrf()
     headers[headerName] = token
@@ -59,7 +61,7 @@ async function send(path, { method = 'GET', body } = {}, retried = false) {
       method,
       headers,
       credentials: 'include',
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, 'NETWORK_ERROR', 'Cannot reach the server.')
@@ -101,3 +103,16 @@ async function send(path, { method = 'GET', body } = {}, retried = false) {
 
 export const get = (path) => send(path)
 export const post = (path, body) => send(path, { method: 'POST', body })
+export const put = (path, body) => send(path, { method: 'PUT', body })
+export const patch = (path, body) => send(path, { method: 'PATCH', body })
+export const del = (path) => send(path, { method: 'DELETE' })
+
+// Query string from an object; undefined / null / '' values are left out.
+export function query(params) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') search.set(key, String(value))
+  }
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}

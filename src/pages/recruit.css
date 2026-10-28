@@ -633,3 +633,15 @@ label.rc-check {
     padding-top: 0;
   }
 }
+
+.rc-load {
+  margin: 24px 0;
+  font-size: 14px;
+  color: var(--om-ink-soft);
+}
+
+.rc-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--om-ink-soft);
+}

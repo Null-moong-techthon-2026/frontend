@@ -584,3 +584,71 @@
     flex-wrap: wrap;
   }
 }
+
+.lv-visibility {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--om-ink-soft);
+}
+
+.lv-visibility small {
+  font-size: 11px;
+}
+
+.lv-menus li {
+  align-items: center;
+}
+
+.lv-item-remove {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-left: 6px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--om-ink-soft);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lv-item-remove:hover:not(:disabled) {
+  background: #fbefec;
+  color: #b5533c;
+}
+
+.lv-item-add {
+  margin-top: 10px;
+}
+
+.lv-item-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--om-border);
+  border-radius: 10px;
+}
+
+.lv-item-form input {
+  flex: 1 1 120px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--om-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.lv-item-form-actions {
+  display: flex;
+  gap: 6px;
+}

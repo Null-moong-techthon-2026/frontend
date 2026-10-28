@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { uploadImage } from '../api/eventApi'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
-import { BOOTH_CATEGORY_LABEL, BOOTH_STATUS } from '../constants/booth'
+import Toast from '../components/Toast'
+import { BOOTH_CATEGORY_LABEL } from '../constants/booth'
+import { apiErrorMessage } from '../constants/errors'
 import { EVENT_IMAGE_EXTENSIONS, EVENT_IMAGE_MAX_BYTES } from '../constants/event'
 import {
-  RECRUIT_CONTACT_MAX,
   RECRUIT_DOC_LABEL_MAX,
   RECRUIT_DOC_MAX,
-  RECRUIT_FEE_MAX,
+  RECRUIT_FEE_MAX_KRW,
   RECRUIT_FEE_NOTE,
+  RECRUIT_FEE_NOTE_MAX,
   RECRUIT_INTRO_MAX,
   RECRUIT_STATUS,
   RECRUIT_STATUS_LABEL,
@@ -20,6 +23,7 @@ import { useRecruit } from '../context/useRecruit'
 import { formatDateTime } from '../utils/date'
 import { fileExtension, formatFileSize } from '../utils/file'
 import { getRecruitStatus } from '../utils/recruit'
+import { useToast } from '../utils/useToast'
 import './recruit.css'
 
 const CATEGORIES = Object.keys(BOOTH_CATEGORY_LABEL)
@@ -31,16 +35,18 @@ const STATUS_CLASS = {
   [RECRUIT_STATUS.PRIVATE]: 'is-private',
 }
 
-// The editable draft, built from what is saved (the event holds the deadline and target count).
+// The editable draft, built from what is saved. The cover image belongs to the event (the same
+// picture as on the dashboard), the rest to the recruitment.
 const toForm = (event, recruit) => ({
   intro: recruit.intro,
-  imageUrl: recruit.imageUrl,
-  deadline: event.recruitDeadline,
-  target: String(event.recruitTarget),
+  imageUrl: event.imageUrl,
+  imageAssetId: event.imageAssetId,
+  deadline: recruit.deadline,
+  target: recruit.target === null ? '' : String(recruit.target),
   categories: recruit.categories,
-  feeInfo: recruit.feeInfo,
+  feeKrw: recruit.feeKrw === null ? '' : String(recruit.feeKrw),
+  feeNote: recruit.feeNote,
   documents: recruit.documents,
-  contact: recruit.contact,
 })
 
 // Canonical form: used to save, and to tell whether the draft differs from what is saved
@@ -48,30 +54,67 @@ const toForm = (event, recruit) => ({
 const normalize = (f) => ({
   intro: f.intro.trim(),
   imageUrl: f.imageUrl,
+  imageAssetId: f.imageAssetId,
   deadline: f.deadline,
   target: f.target.trim(),
   categories: CATEGORIES.filter((c) => f.categories.includes(c)),
-  feeInfo: f.feeInfo.trim(),
-  documents: f.documents,
-  contact: f.contact.trim(),
+  feeKrw: f.feeKrw.trim(),
+  feeNote: f.feeNote.trim(),
+  documents: f.documents.map((d) => ({ id: d.id, label: d.label, required: d.required, categories: d.categories })),
 })
 
 const sameForm = (a, b) => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b))
 
 const isValidTarget = (t) => /^\d+$/.test(t) && Number(t) >= 1 && Number(t) <= RECRUIT_TARGET_MAX
+const isValidFee = (t) => t === '' || (/^\d+$/.test(t) && Number(t) <= RECRUIT_FEE_MAX_KRW)
+
+const feeText = (feeKrw, feeNote) => {
+  const amount = feeKrw === '' ? '' : Number(feeKrw) === 0 ? '무료' : `${Number(feeKrw).toLocaleString()}원`
+  return [amount, feeNote].filter(Boolean).join(' · ') || '-'
+}
 
 export default function RecruitPage() {
+  const { event } = useEvent()
+  const { recruit, loading, error, reload } = useRecruit()
+
+  if (!recruit) {
+    // Wait for the first load of the recruitment; offer a retry when it failed.
+    return (
+      <OrganizerLayout
+        active="recruit"
+        crumb="부스 모집"
+        title="부스 모집"
+        subtitle="모집 공고를 작성하고 부스 운영자에게 공개하세요."
+      >
+        <p className="rc-load">
+          {loading ? '불러오는 중…' : apiErrorMessage(error)}{' '}
+          {!loading && (
+            <button type="button" className="om-chip" onClick={reload}>
+              다시 시도
+            </button>
+          )}
+        </p>
+      </OrganizerLayout>
+    )
+  }
+  return <RecruitEditor key={event.id} event={event} recruit={recruit} />
+}
+
+function RecruitEditor({ event, recruit }) {
   const navigate = useNavigate()
-  const { event, updateEvent } = useEvent()
-  const { recruit, updateRecruit, setPublished } = useRecruit()
-  const { booths } = useBooths()
+  const { updateEvent } = useEvent()
+  const { saveRecruit, setPublished } = useRecruit()
+  const { summary } = useBooths()
+  const { toast, notify } = useToast()
 
   const saved = toForm(event, recruit)
   const [form, setForm] = useState(saved)
   const [showErrors, setShowErrors] = useState(false) // field errors appear after the first save try
   const [justSaved, setJustSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [imageName, setImageName] = useState('')
   const [imageError, setImageError] = useState('')
+  const [uploading, setUploading] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [docDraft, setDocDraft] = useState(null) // null = closed, string = the new document's name
   const [docError, setDocError] = useState('')
@@ -100,27 +143,53 @@ export default function RecruitPage() {
       ? ''
       : `모집 부스 수는 1~${RECRUIT_TARGET_MAX} 사이 숫자로 입력해 주세요.`,
     categories: form.categories.length > 0 ? '' : '모집 카테고리를 하나 이상 선택해 주세요.',
+    fee: isValidFee(form.feeKrw.trim()) ? '' : '참가비는 0 이상의 숫자(원)로 입력해 주세요.',
   }
   const hasErrors = Object.values(errors).some(Boolean)
   const shown = (key) => (showErrors ? errors[key] : '')
 
-  const save = () => {
+  const save = async () => {
     setShowErrors(true)
-    if (hasErrors) return
+    if (hasErrors || busy || uploading) return
     const next = normalize(form)
-    // The deadline and target belong to the event (the dashboard shows them too).
-    updateEvent({ recruitDeadline: next.deadline, recruitTarget: Number(next.target) })
-    updateRecruit({
-      intro: next.intro,
-      imageUrl: next.imageUrl,
-      categories: next.categories,
-      feeInfo: next.feeInfo,
-      documents: next.documents,
-      contact: next.contact,
-    })
-    setForm(next)
-    setJustSaved(true)
-    setTimeout(() => setJustSaved(false), 2500)
+    setBusy(true)
+    try {
+      // The cover image is the event's picture: link a newly uploaded one to the event first.
+      const savedEvent =
+        next.imageAssetId !== event.imageAssetId
+          ? await updateEvent({ imageAssetId: next.imageAssetId })
+          : event
+      const savedRecruit = await saveRecruit({
+        intro: next.intro,
+        deadline: next.deadline,
+        target: Number(next.target),
+        categories: next.categories,
+        feeKrw: next.feeKrw === '' ? null : Number(next.feeKrw),
+        feeNote: next.feeNote,
+        documents: next.documents,
+      })
+      // Show what was saved (new documents now carry their server-made ids) as the new baseline.
+      setForm(toForm(savedEvent, savedRecruit))
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 2500)
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const publish = async (published) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await setPublished(published)
+      notify(published ? '모집 공고를 공개했어요.' : '모집 공개를 종료했어요.')
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const toggleCategory = (key) =>
@@ -143,30 +212,41 @@ export default function RecruitPage() {
       return setDocError(`서류는 최대 ${RECRUIT_DOC_MAX}개까지 추가할 수 있어요.`)
     }
     patch({
-      documents: [...form.documents, { id: `custom-${docSeq.current++}`, label, required: true }],
+      documents: [
+        ...form.documents,
+        { id: `new-${docSeq.current++}`, label, required: true, categories: [] },
+      ],
     })
     setDocDraft(null)
     setDocError('')
   }
 
-  // TODO(backend): upload the file and keep the returned server URL instead of a blob: URL.
-  const loadImage = (file) => {
-    if (!file) return
+  // The image is uploaded right away; it is linked to the event when the form is saved.
+  const loadImage = async (file) => {
+    if (!file || uploading) return
     if (!EVENT_IMAGE_EXTENSIONS.includes(fileExtension(file.name))) {
-      setImageError('PNG, JPG, WEBP, GIF 이미지만 넣을 수 있어요.')
+      setImageError('PNG, JPG 이미지만 넣을 수 있어요.')
     } else if (file.size > EVENT_IMAGE_MAX_BYTES) {
       setImageError('이미지는 최대 10MB까지 넣을 수 있어요.')
     } else {
       setImageError('')
-      setImageName(`${file.name} (${formatFileSize(file.size)})`)
-      patch({ imageUrl: URL.createObjectURL(file) })
+      setUploading(true)
+      try {
+        const asset = await uploadImage(event.id, file)
+        setImageName(`${file.name} (${formatFileSize(file.size)})`)
+        patch({ imageUrl: asset.readUrl, imageAssetId: asset.mediaAssetId })
+      } catch (err) {
+        setImageError(apiErrorMessage(err))
+      } finally {
+        setUploading(false)
+      }
     }
   }
 
-  // ---- numbers that must match the other screens (computed, not stored) ----
-  const count = (status) => booths.filter((b) => b.status === status).length
-  const status = getRecruitStatus(recruit.published, event.recruitDeadline)
-  const canPublish = !dirty && recruit.intro.trim() !== ''
+  // ---- numbers that must match the other screens (from the backend, not stored here) ----
+  const status = getRecruitStatus(recruit.published, recruit.deadline)
+  const canPublish =
+    !dirty && recruit.intro.trim() !== '' && recruit.deadline !== '' && recruit.categories.length > 0
 
   const statusNote = recruit.published
     ? '공개 중 · 저장한 공고가 행사 목록에 표시됩니다.'
@@ -174,7 +254,9 @@ export default function RecruitPage() {
       ? '저장하지 않은 변경 사항이 있어요. 저장한 뒤 공개할 수 있어요.'
       : recruit.intro.trim() === ''
         ? '소개글을 저장해야 공개할 수 있어요.'
-        : '비공개 · 공개하면 행사 목록에 표시됩니다.'
+        : !recruit.deadline || recruit.categories.length === 0
+          ? '모집 마감일과 카테고리를 저장해야 공개할 수 있어요.'
+          : '비공개 · 공개하면 행사 목록에 표시됩니다.'
 
   const requiredDocs = form.documents.filter((d) => d.required)
 
@@ -194,8 +276,8 @@ export default function RecruitPage() {
           <button type="button" className="om-btn om-btn-outline" onClick={() => setPreviewOpen(true)}>
             미리보기
           </button>
-          <button type="button" className="om-btn om-btn-primary" onClick={save}>
-            저장하기
+          <button type="button" className="om-btn om-btn-primary" onClick={save} disabled={busy || uploading}>
+            {busy ? '저장 중…' : '저장하기'}
           </button>
         </>
       }
@@ -205,19 +287,24 @@ export default function RecruitPage() {
         <h2>모집 상태</h2>
         <span className={`rc-chip ${STATUS_CLASS[status]}`}>{RECRUIT_STATUS_LABEL[status]}</span>
         <span className="rc-status-deadline">
-          마감 {event.recruitDeadline ? formatDateTime(event.recruitDeadline) : '미정'}
+          마감 {recruit.deadline ? formatDateTime(recruit.deadline) : '미정'}
         </span>
         <p className="rc-status-note">{statusNote}</p>
         {recruit.published ? (
-          <button type="button" className="rc-btn rc-btn-danger-outline" onClick={() => setCloseOpen(true)}>
+          <button
+            type="button"
+            className="rc-btn rc-btn-danger-outline"
+            disabled={busy}
+            onClick={() => setCloseOpen(true)}
+          >
             공개 종료
           </button>
         ) : (
           <button
             type="button"
             className="rc-btn rc-btn-primary"
-            disabled={!canPublish}
-            onClick={() => setPublished(true)}
+            disabled={!canPublish || busy}
+            onClick={() => publish(true)}
           >
             공개하기
           </button>
@@ -255,29 +342,21 @@ export default function RecruitPage() {
                   <img src={form.imageUrl} alt="대표 이미지 미리보기" />
                   <div>
                     {imageName && <small>{imageName}</small>}
+                    <small>행사 대표 이미지와 같은 그림이에요.</small>
                     <div className="rc-image-actions">
                       <label className="om-chip rc-file-chip">
-                        변경
+                        {uploading ? '올리는 중…' : '변경'}
                         <input
                           type="file"
                           accept={ACCEPT}
                           className="om-file-input"
+                          disabled={uploading}
                           onChange={(e) => {
                             loadImage(e.target.files[0])
                             e.target.value = ''
                           }}
                         />
                       </label>
-                      <button
-                        type="button"
-                        className="om-chip"
-                        onClick={() => {
-                          patch({ imageUrl: null })
-                          setImageName('')
-                        }}
-                      >
-                        삭제
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -299,13 +378,14 @@ export default function RecruitPage() {
                     type="file"
                     accept={ACCEPT}
                     className="om-file-input"
+                    disabled={uploading}
                     onChange={(e) => {
                       loadImage(e.target.files[0])
                       e.target.value = ''
                     }}
                   />
                   <Icon name="upload" />
-                  <small>이미지 업로드 · PNG, JPG</small>
+                  <small>{uploading ? '올리는 중…' : '이미지 업로드 · PNG, JPG'}</small>
                 </label>
               )}
               {imageError && <p className="rc-error">{imageError}</p>}
@@ -361,16 +441,32 @@ export default function RecruitPage() {
             </div>
           </div>
 
-          <div className="rc-row">
-            <label htmlFor="rc-fee">참가비 안내</label>
+          <div className="rc-row rc-row-pair">
+            <label htmlFor="rc-fee">참가비</label>
+            <div>
+              <div className="rc-suffix">
+                <input
+                  id="rc-fee"
+                  className="rc-input"
+                  inputMode="numeric"
+                  maxLength={9}
+                  placeholder="예: 50000"
+                  value={form.feeKrw}
+                  onChange={(e) => patch({ feeKrw: e.target.value.replace(/\D/g, '') })}
+                />
+                <span>원</span>
+              </div>
+              {shown('fee') && <p className="rc-error">{shown('fee')}</p>}
+            </div>
+            <label htmlFor="rc-fee-note">참가비 안내</label>
             <div className="rc-fee">
               <input
-                id="rc-fee"
+                id="rc-fee-note"
                 className="rc-input"
-                maxLength={RECRUIT_FEE_MAX}
-                placeholder="예: 50,000원 / 부스"
-                value={form.feeInfo}
-                onChange={(e) => patch({ feeInfo: e.target.value })}
+                maxLength={RECRUIT_FEE_NOTE_MAX}
+                placeholder="예: 부스당 1회"
+                value={form.feeNote}
+                onChange={(e) => patch({ feeNote: e.target.value })}
               />
               <small>{RECRUIT_FEE_NOTE}</small>
             </div>
@@ -386,16 +482,14 @@ export default function RecruitPage() {
                       <input type="checkbox" checked={d.required} onChange={() => toggleDoc(d.id)} />
                       {d.label}
                     </label>
-                    {d.id.startsWith('custom-') && (
-                      <button
-                        type="button"
-                        className="rc-doc-remove"
-                        aria-label={`${d.label} 삭제`}
-                        onClick={() => removeDoc(d.id)}
-                      >
-                        ×
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="rc-doc-remove"
+                      aria-label={`${d.label} 삭제`}
+                      onClick={() => removeDoc(d.id)}
+                    >
+                      ×
+                    </button>
                   </span>
                 ))}
                 {docDraft === null ? (
@@ -448,19 +542,10 @@ export default function RecruitPage() {
                 )}
               </div>
               {docError && <p className="rc-error">{docError}</p>}
+              {summary.total > 0 && (
+                <p className="rc-hint">첫 신청이 들어온 뒤에는 카테고리·참가비·필요 서류를 바꿀 수 없어요.</p>
+              )}
             </div>
-          </div>
-
-          <div className="rc-row">
-            <label htmlFor="rc-contact">문의 연락처</label>
-            <input
-              id="rc-contact"
-              className="rc-input"
-              maxLength={RECRUIT_CONTACT_MAX}
-              placeholder="예: 부스 담당자 01000000000"
-              value={form.contact}
-              onChange={(e) => patch({ contact: e.target.value })}
-            />
           </div>
 
           <p className="rc-foot-note">저장한 공고는 모집 상태의 공개 버튼으로 공개할 수 있습니다.</p>
@@ -473,33 +558,33 @@ export default function RecruitPage() {
 
           <div className="rc-total">
             <span>접수된 신청</span>
-            <strong>{booths.length}건</strong>
-            <p>부스 운영자 {booths.length}팀이 신청했습니다.</p>
+            <strong>{summary.total}건</strong>
+            <p>부스 운영자 {summary.total}팀이 신청했습니다.</p>
           </div>
 
           <div className="rc-tiles">
             <div className="rc-tile is-pending">
               <span>검토 중</span>
-              <strong>{count(BOOTH_STATUS.PENDING)}</strong>
+              <strong>{summary.pending}</strong>
             </div>
             <div className="rc-tile is-approved">
               <span>승인</span>
-              <strong>{count(BOOTH_STATUS.APPROVED)}</strong>
+              <strong>{summary.approved}</strong>
             </div>
             <div className="rc-tile is-rejected">
               <span>반려</span>
-              <strong>{count(BOOTH_STATUS.REJECTED)}</strong>
+              <strong>{summary.rejected}</strong>
             </div>
           </div>
 
           <dl className="rc-facts">
             <div>
               <dt>모집 마감일</dt>
-              <dd>{event.recruitDeadline ? formatDateTime(event.recruitDeadline) : '미정'}</dd>
+              <dd>{recruit.deadline ? formatDateTime(recruit.deadline) : '미정'}</dd>
             </div>
             <div>
               <dt>모집 부스 수</dt>
-              <dd>{event.recruitTarget}팀</dd>
+              <dd>{recruit.target ? `${recruit.target}팀` : '미정'}</dd>
             </div>
           </dl>
           <p className="rc-summary-note">신청 세부 내용은 부스 관리에서 확인할 수 있어요.</p>
@@ -560,15 +645,11 @@ export default function RecruitPage() {
                 </div>
                 <div>
                   <dt>참가비</dt>
-                  <dd>{form.feeInfo.trim() || '-'}</dd>
+                  <dd>{feeText(form.feeKrw.trim(), form.feeNote.trim())}</dd>
                 </div>
                 <div>
                   <dt>필요 서류</dt>
                   <dd>{requiredDocs.map((d) => d.label).join(', ') || '없음'}</dd>
-                </div>
-                <div>
-                  <dt>문의</dt>
-                  <dd>{form.contact.trim() || '-'}</dd>
                 </div>
               </dl>
             </div>
@@ -602,7 +683,7 @@ export default function RecruitPage() {
                 type="button"
                 className="om-btn om-btn-danger"
                 onClick={() => {
-                  setPublished(false)
+                  publish(false)
                   setCloseOpen(false)
                 }}
               >
@@ -612,6 +693,8 @@ export default function RecruitPage() {
           </div>
         </div>
       )}
+
+      <Toast toast={toast} />
     </OrganizerLayout>
   )
 }

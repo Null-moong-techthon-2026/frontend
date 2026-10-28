@@ -1,65 +1,62 @@
 import './floor-map.css'
 
-// Read-only view of the event map made in 지도 제작: the floor-plan image with its pins.
-// Pin positions are pixels of the ORIGINAL image, so they are drawn as percentages of the
-// image box and stay exact at any size.
+// Read-only view of the event map: the floor-plan image with its pins. Pin positions are ratios
+// (0..1) of the image, drawn as percentages of the image box, so they stay exact at any size.
 //
-//   image             MapProvider's image ({ url, width, height }); renders nothing when null
-//   pins              MapProvider's pins
-//   booths            Booth[] — used to show the number of the highlighted booth
-//   highlightBoothId  booth whose pin is emphasised
+//   image             null | { url }; renders nothing when null
+//   pins              { id, xRatio, yRatio, boothId, name, boothCode }[]
+//                     boothId is the event booth the pin stands for (null for facilities);
+//                     name / boothCode are that booth's, used for the labels
+//   highlightBoothId  booth whose pin is emphasised (shows its booth code)
 //   labelBooths       write each booth's name next to its pin (for the large view)
 //   onSelectBooth     (boothId) => void — makes booth pins clickable
 //   maxHeight         CSS length limiting the picture's height
 export default function FloorMap({
   image,
   pins,
-  booths,
   highlightBoothId = null,
   labelBooths = false,
   onSelectBooth,
   maxHeight = '260px',
 }) {
   if (!image) return null
-  const ready = image.width > 0 && image.height > 0
 
   return (
     <div className="fm-wrap">
       <div className="fm" style={{ '--fm-max-h': maxHeight }}>
         <img src={image.url} alt="행사장 평면도" draggable={false} />
-        {ready &&
-          pins.map((pin) => {
-            const booth = pin.boothId != null ? booths.find((b) => b.id === pin.boothId) : null
-            const selected = booth != null && booth.id === highlightBoothId
-            const style = {
-              left: `${(pin.x / image.width) * 100}%`,
-              top: `${(pin.y / image.height) * 100}%`,
-            }
-            const className = `fm-pin${booth ? ' is-booth' : ' is-other'}${selected ? ' is-selected' : ''}`
-            const content = (
-              <>
-                {selected ? <span className="fm-num">{booth.boothNo ?? ''}</span> : null}
-                {labelBooths && booth && !selected ? <span className="fm-label">{booth.name}</span> : null}
-                {labelBooths && selected ? <span className="fm-label is-selected">{booth.name}</span> : null}
-              </>
-            )
-            return booth && onSelectBooth ? (
-              <button
-                key={pin.id}
-                type="button"
-                className={className}
-                style={style}
-                aria-label={`${booth.name} 선택`}
-                onClick={() => onSelectBooth(booth.id)}
-              >
-                {content}
-              </button>
-            ) : (
-              <span key={pin.id} className={className} style={style}>
-                {content}
-              </span>
-            )
-          })}
+        {pins.map((pin) => {
+          const isBooth = pin.boothId != null
+          const selected = isBooth && pin.boothId === highlightBoothId
+          const style = {
+            left: `${pin.xRatio * 100}%`,
+            top: `${pin.yRatio * 100}%`,
+          }
+          const className = `fm-pin${isBooth ? ' is-booth' : ' is-other'}${selected ? ' is-selected' : ''}`
+          const content = (
+            <>
+              {selected ? <span className="fm-num">{pin.boothCode ?? ''}</span> : null}
+              {labelBooths && isBooth && !selected ? <span className="fm-label">{pin.name}</span> : null}
+              {labelBooths && selected ? <span className="fm-label is-selected">{pin.name}</span> : null}
+            </>
+          )
+          return isBooth && onSelectBooth ? (
+            <button
+              key={pin.id}
+              type="button"
+              className={className}
+              style={style}
+              aria-label={`${pin.name} 선택`}
+              onClick={() => onSelectBooth(pin.boothId)}
+            >
+              {content}
+            </button>
+          ) : (
+            <span key={pin.id} className={className} style={style}>
+              {content}
+            </span>
+          )
+        })}
       </div>
     </div>
   )

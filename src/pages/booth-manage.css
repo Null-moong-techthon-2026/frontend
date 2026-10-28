@@ -473,3 +473,10 @@
     overflow: visible;
   }
 }
+
+.bm-docs-note {
+  margin: 8px 0 14px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--om-ink-soft);
+}

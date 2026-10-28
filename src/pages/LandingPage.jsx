@@ -3,10 +3,18 @@ import ScreenShell from '../components/ScreenShell'
 import boothLogo from '../assets/booth-logo.png'
 import { HOME_PATH } from '../constants/auth'
 import { useAuth } from '../context/useAuth'
+import { useMediaQuery } from '../utils/useMediaQuery'
+import DesktopLanding from './DesktopLanding'
 
-// Screen 1 — entry screen. Lets the user skip straight in (시작하기)
-// or head to the login/signup flow.
+// Entry screen. Computers and laptops get the full landing page (DesktopLanding); narrower screens
+// keep the phone-sized card below, which lets the user skip straight in (시작하기) or head to the
+// login/signup flow.
 export default function LandingPage() {
+  const desktop = useMediaQuery('(min-width: 1024px)')
+  return desktop ? <DesktopLanding /> : <PhoneLanding />
+}
+
+function PhoneLanding() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 

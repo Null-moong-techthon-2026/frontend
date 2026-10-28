@@ -1,0 +1,316 @@
+/* Administrator screen for 행사 개설 신청 (pages/AdminApplicationsPage.jsx). */
+.ad {
+  min-height: 100dvh;
+  padding: 8px clamp(16px, 4vw, 56px) 48px;
+  background: #f4f6f5;
+  color: #173b35;
+}
+
+.ad button,
+.ad textarea {
+  font-family: inherit;
+}
+
+.ad-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 28px 0 18px;
+}
+
+.ad-head h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.ad-head p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #62756f;
+}
+
+.ad-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ad-head-actions button {
+  padding: 9px 16px;
+  border: 1px solid #d3dcd8;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ad-head-actions .is-danger {
+  color: #b5382d;
+}
+
+.ad-head-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ad-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.ad-list,
+.ad-detail {
+  border: 1px solid #d3dcd8;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.ad-list {
+  overflow: hidden;
+}
+
+.ad-list table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ad-list th,
+.ad-list td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf1ef;
+  text-align: left;
+}
+
+.ad-list th {
+  background: #f8faf9;
+  color: #62756f;
+  font-size: 12px;
+}
+
+.ad-list tbody tr {
+  cursor: pointer;
+}
+
+.ad-list tbody tr:hover,
+.ad-list tbody tr.is-selected {
+  background: #f0f6f3;
+}
+
+.ad-strong {
+  font-weight: 800;
+}
+
+.ad-empty {
+  padding: 28px 16px !important;
+  color: #62756f;
+  font-size: 13px;
+  text-align: center !important;
+}
+
+.ad-detail {
+  padding: 22px 24px;
+}
+
+.ad-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ad-detail-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.ad-sub {
+  margin: 6px 0 4px;
+  font-size: 12px;
+  color: #62756f;
+}
+
+.ad-detail h3 {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  color: #3f7d72;
+}
+
+.ad-detail dl {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.ad-detail dt {
+  color: #62756f;
+}
+
+.ad-detail dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.ad-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ad-chip.is-pending {
+  background: #f1f7d5;
+  color: #4d6a1f;
+}
+
+.ad-chip.is-approved {
+  background: #326a60;
+  color: #fff;
+}
+
+.ad-chip.is-rejected {
+  background: #f6e1dc;
+  color: #a4402e;
+}
+
+.ad-decide {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #edf1ef;
+}
+
+.ad-decide label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ad-decide textarea {
+  width: 100%;
+  height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #d3dcd8;
+  border-radius: 8px;
+  font-size: 13px;
+  resize: none;
+}
+
+.ad-decide > div {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ad-decide button {
+  flex: 1;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ad-decide .is-reject {
+  background: #f6e1dc;
+  color: #a4402e;
+}
+
+.ad-decide .is-approve {
+  background: #3f7d72;
+  color: #fff;
+}
+
+.ad-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #b5382d;
+  font-weight: 700;
+}
+
+.ad-done {
+  margin: 22px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f4f6f5;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .ad-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ad-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.ad-filters button {
+  padding: 8px 18px;
+  border: 1px solid #d3dcd8;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ad-filters button.is-active {
+  border-color: #0f3d35;
+  background: #0f3d35;
+  color: #fff;
+}
+
+.ad-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.ad-pager button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d3dcd8;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.ad-pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ad-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 15px;
+}
+
+.ad-center button {
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: #0f3d35;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}

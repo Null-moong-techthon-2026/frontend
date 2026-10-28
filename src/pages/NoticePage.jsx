@@ -1,26 +1,30 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { uploadImage } from '../api/eventApi'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
 import Select from '../components/Select'
+import Toast from '../components/Toast'
+import { apiErrorMessage } from '../constants/errors'
 import {
-  NOTICE_ATTACHMENT_EXTENSIONS,
-  NOTICE_ATTACHMENT_MAX_BYTES,
-  NOTICE_ATTACHMENT_MAX_COUNT,
   NOTICE_AUDIENCE_LABEL,
+  NOTICE_BODY_MAX,
   NOTICE_IMAGE_EXTENSIONS,
+  NOTICE_IMAGE_MAX_BYTES,
   NOTICE_STATUS,
   NOTICE_STATUS_LABEL,
+  NOTICE_TITLE_MAX,
 } from '../constants/notice'
+import { useEvent } from '../context/useEvent'
 import { useNotices } from '../context/useNotices'
 import { formatDateTime } from '../utils/date'
-import { audienceText, noticeDateText as dateText, sortNotices } from '../utils/notice'
 import { fileExtension, formatFileSize } from '../utils/file'
+import { audienceText, noticeDateText as dateText, sortNotices } from '../utils/notice'
+import { useToast } from '../utils/useToast'
 import './notice.css'
 
 const AUDIENCES = Object.keys(NOTICE_AUDIENCE_LABEL)
-const EMPTY_FORM = { title: '', body: '', attachments: [], audiences: AUDIENCES, urgent: false }
-const ACCEPT = NOTICE_ATTACHMENT_EXTENSIONS.map((e) => `.${e}`).join(',')
-const isImage = (a) => NOTICE_IMAGE_EXTENSIONS.includes(fileExtension(a.name))
+const EMPTY_FORM = { title: '', body: '', image: null, audiences: AUDIENCES, urgent: false }
+const ACCEPT = NOTICE_IMAGE_EXTENSIONS.map((e) => `.${e}`).join(',')
 
 const STATUS_CLASS = {
   [NOTICE_STATUS.PUBLISHED]: 'is-published',
@@ -29,13 +33,21 @@ const STATUS_CLASS = {
 }
 
 export default function NoticePage() {
-  const { notices, saveNotice, closeNotice, reopenNotice, deleteNotice } = useNotices()
-  const [selectedId, setSelectedId] = useState(1)
+  const { event } = useEvent()
+  const { notices, loading, loadNotice, saveNotice, closeNotice, reopenNotice, deleteNotice } =
+    useNotices()
+  const { toast, notify } = useToast()
+  // undefined = nothing chosen yet (the first notice of the list is shown), null = none selected.
+  const [chosenId, setChosenId] = useState(undefined)
+  // The list rows have no body or image; the full notice of the selection is loaded separately.
+  const [detail, setDetail] = useState(null)
   // The dashboard's "+ 공지 작성" opens this page straight into the composer.
   const { state } = useLocation()
   const [mode, setMode] = useState(state?.compose ? 'new' : 'view') // 'view' | 'edit' | 'new'
   const [form, setForm] = useState(EMPTY_FORM)
   const [fileError, setFileError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [query, setQuery] = useState('')
   const [audienceFilter, setAudienceFilter] = useState('all')
@@ -47,7 +59,10 @@ export default function NoticePage() {
       .filter((n) => audienceFilter === 'all' || n.audiences.includes(audienceFilter)),
   )
 
-  const selected = notices.find((n) => n.id === selectedId) ?? null
+  const selectedId = chosenId === undefined ? (list[0]?.id ?? null) : chosenId
+  const row = notices.find((n) => n.id === selectedId) ?? null
+  // Show the full notice once it is loaded, the list row (without body) until then.
+  const selected = row && (detail?.id === row.id && detail.revision === row.revision ? detail : row)
   const editing = mode !== 'view'
   const isNew = mode === 'new'
 
@@ -56,6 +71,19 @@ export default function NoticePage() {
 
   const patchForm = (fields) => setForm((f) => ({ ...f, ...fields }))
 
+  // Load the body and image of the selected notice (again after the list changed its revision).
+  const rowRevision = row?.revision
+  useEffect(() => {
+    if (!selectedId) return
+    let alive = true
+    loadNotice(selectedId)
+      .then((full) => alive && setDetail(full))
+      .catch((err) => alive && notify(apiErrorMessage(err), 'error'))
+    return () => {
+      alive = false
+    }
+  }, [selectedId, rowRevision, loadNotice, notify])
+
   const startNew = () => {
     setForm(EMPTY_FORM)
     setFileError('')
@@ -63,8 +91,8 @@ export default function NoticePage() {
   }
 
   const startEdit = () => {
-    const { title, body, attachments, audiences, urgent } = selected
-    setForm({ title, body, attachments, audiences, urgent })
+    const { title, body, image, audiences, urgent } = selected
+    setForm({ title, body, image, audiences, urgent })
     setFileError('')
     setMode('edit')
   }
@@ -75,17 +103,52 @@ export default function NoticePage() {
   }
 
   const openNotice = (id) => {
-    setSelectedId(id)
+    setChosenId(id)
     setMode('view')
   }
 
+  // Runs a write call and reports a failure as a message; resolves with its result (or undefined).
+  const attempt = async (action, successMessage) => {
+    if (busy) return undefined
+    setBusy(true)
+    try {
+      const result = await action()
+      if (successMessage) notify(successMessage)
+      return result
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+      return undefined
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // Saves the form with the given status and returns to the viewer.
-  const submit = (status) => {
-    const { title, body, attachments, audiences, urgent } = form
-    const fields = { title: title.trim(), body, attachments, audiences, urgent }
-    const id = saveNotice(isNew ? null : selectedId, fields, status)
-    setSelectedId(id)
+  const submit = async (status) => {
+    const { title, body, image, audiences, urgent } = form
+    const fields = { title: title.trim(), body, image, audiences, urgent }
+    const saved = await attempt(
+      () => saveNotice(isNew ? null : selectedId, fields, status),
+      status === NOTICE_STATUS.PUBLISHED ? '공지를 게시했어요.' : '공지를 저장했어요.',
+    )
+    if (!saved) return
+    setChosenId(saved.id)
+    setDetail(saved)
     setMode('view')
+  }
+
+  const changeStatus = async (action, message) => {
+    const saved = await attempt(() => action(selectedId), message)
+    if (saved) setDetail(saved)
+  }
+
+  const remove = async () => {
+    setDeleteOpen(false)
+    const done = await attempt(async () => {
+      await deleteNotice(selectedId)
+      return true
+    }, '공지를 삭제했어요.')
+    if (done) setChosenId(null)
   }
 
   const toggleAudience = (key) =>
@@ -95,38 +158,35 @@ export default function NoticePage() {
         : AUDIENCES.filter((a) => a === key || form.audiences.includes(a)),
     })
 
-  // TODO(backend): upload each file and keep the returned server URL instead of a blob: URL.
-  const addFiles = (fileList) => {
-    const room = NOTICE_ATTACHMENT_MAX_COUNT - form.attachments.length
-    const added = []
-    let error = ''
-    for (const file of fileList) {
-      if (!NOTICE_ATTACHMENT_EXTENSIONS.includes(fileExtension(file.name))) {
-        error = `'${file.name}'은(는) 첨부할 수 없는 형식이에요.`
-      } else if (file.size > NOTICE_ATTACHMENT_MAX_BYTES) {
-        error = `'${file.name}'은(는) 10MB를 넘어요.`
-      } else if (added.length >= room) {
-        error = `파일은 최대 ${NOTICE_ATTACHMENT_MAX_COUNT}개까지 첨부할 수 있어요.`
-      } else {
-        added.push({
-          id: `${Date.now()}-${added.length}-${file.name}`,
-          name: file.name,
-          size: file.size,
-          url: URL.createObjectURL(file),
-        })
-      }
+  // A notice has at most one image. It is uploaded as soon as it is chosen and linked on save.
+  const addFile = async (file) => {
+    if (!file || uploading) return
+    if (!NOTICE_IMAGE_EXTENSIONS.includes(fileExtension(file.name))) {
+      setFileError(`'${file.name}'은(는) 올릴 수 없는 형식이에요. PNG 또는 JPG만 가능해요.`)
+      return
     }
-    setFileError(error)
-    if (added.length > 0) patchForm({ attachments: [...form.attachments, ...added] })
+    if (file.size > NOTICE_IMAGE_MAX_BYTES) {
+      setFileError(`'${file.name}'은(는) 10MB를 넘어요.`)
+      return
+    }
+    setFileError('')
+    setUploading(true)
+    try {
+      const asset = await uploadImage(event.id, file)
+      patchForm({
+        image: { assetId: asset.mediaAssetId, url: asset.readUrl, name: file.name, size: file.size },
+      })
+    } catch (err) {
+      setFileError(apiErrorMessage(err))
+    } finally {
+      setUploading(false)
+    }
   }
-
-  const removeAttachment = (id) =>
-    patchForm({ attachments: form.attachments.filter((a) => a.id !== id) })
 
   const handleDrop = (e) => {
     e.preventDefault()
     setDragging(false)
-    addFiles([...e.dataTransfer.files])
+    addFile(e.dataTransfer.files[0])
   }
 
   return (
@@ -190,7 +250,15 @@ export default function NoticePage() {
                 </button>
               </li>
             ))}
-            {list.length === 0 && <li className="nt-empty">조건에 맞는 공지가 없어요.</li>}
+            {list.length === 0 && (
+              <li className="nt-empty">
+                {loading
+                  ? '불러오는 중…'
+                  : notices.length === 0
+                    ? '아직 작성한 공지가 없어요.'
+                    : '조건에 맞는 공지가 없어요.'}
+              </li>
+            )}
           </ul>
 
           <p className="nt-note">
@@ -218,7 +286,7 @@ export default function NoticePage() {
                   id="nt-title"
                   className="nt-input"
                   placeholder="공지 제목을 입력하세요."
-                  maxLength={60}
+                  maxLength={NOTICE_TITLE_MAX}
                   value={form.title}
                   onChange={(e) => patchForm({ title: e.target.value })}
                 />
@@ -230,58 +298,53 @@ export default function NoticePage() {
                   id="nt-body"
                   className="nt-textarea"
                   placeholder="공지 내용을 입력하세요."
+                  maxLength={NOTICE_BODY_MAX}
                   value={form.body}
                   onChange={(e) => patchForm({ body: e.target.value })}
                 />
 
-                <span className="nt-label">파일 첨부 (선택)</span>
-                <label
-                  className={`nt-drop${dragging ? ' is-dragging' : ''}`}
-                  onDragOver={(e) => {
-                    e.preventDefault()
-                    setDragging(true)
-                  }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={handleDrop}
-                >
-                  <input
-                    type="file"
-                    multiple
-                    accept={ACCEPT}
-                    className="om-file-input"
-                    onChange={(e) => {
-                      addFiles([...e.target.files])
-                      e.target.value = ''
-                    }}
-                  />
-                  <Icon name="upload" />
-                  <span>
-                    <strong>파일을 이곳에 끌어오거나 선택</strong>
-                    <small>
-                      이미지 · PDF · 한글(HWP) · Word · PowerPoint · Excel 등 · 파일당 최대 10MB ·
-                      최대 {NOTICE_ATTACHMENT_MAX_COUNT}개
-                    </small>
-                  </span>
-                </label>
-                {fileError && <p className="nt-error">{fileError}</p>}
-                {form.attachments.length > 0 && (
+                <span className="nt-label">이미지 첨부 (선택)</span>
+                {form.image ? (
                   <ul className="nt-files">
-                    {form.attachments.map((a) => (
-                      <li key={a.id}>
-                        {isImage(a) ? <img src={a.url} alt="" /> : <Icon name="image" />}
-                        <span className="nt-file-name">{a.name}</span>
-                        <span className="nt-file-size">{formatFileSize(a.size)}</span>
-                        <button
-                          type="button"
-                          className="om-chip"
-                          onClick={() => removeAttachment(a.id)}
-                        >
-                          삭제
-                        </button>
-                      </li>
-                    ))}
+                    <li>
+                      <img src={form.image.url} alt="" />
+                      <span className="nt-file-name">{form.image.name ?? '첨부 이미지'}</span>
+                      {form.image.size != null && (
+                        <span className="nt-file-size">{formatFileSize(form.image.size)}</span>
+                      )}
+                      <button type="button" className="om-chip" onClick={() => patchForm({ image: null })}>
+                        삭제
+                      </button>
+                    </li>
                   </ul>
+                ) : (
+                  <label
+                    className={`nt-drop${dragging ? ' is-dragging' : ''}`}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setDragging(true)
+                    }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={handleDrop}
+                  >
+                    <input
+                      type="file"
+                      accept={ACCEPT}
+                      className="om-file-input"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        addFile(e.target.files[0])
+                        e.target.value = ''
+                      }}
+                    />
+                    <Icon name="upload" />
+                    <span>
+                      <strong>{uploading ? '올리는 중…' : '이미지를 이곳에 끌어오거나 선택'}</strong>
+                      <small>PNG · JPG · 최대 10MB · 공지마다 1장</small>
+                    </span>
+                  </label>
                 )}
+                {fileError && <p className="nt-error">{fileError}</p>}
 
                 <span className="nt-label">공지 대상</span>
                 <div className="nt-audiences">
@@ -318,7 +381,7 @@ export default function NoticePage() {
                 <button
                   type="button"
                   className="nt-btn nt-btn-outline"
-                  disabled={!canDraft}
+                  disabled={!canDraft || busy || uploading}
                   onClick={() => submit(NOTICE_STATUS.DRAFT)}
                 >
                   임시 저장
@@ -327,7 +390,7 @@ export default function NoticePage() {
                   <button
                     type="button"
                     className="nt-btn nt-btn-danger"
-                    disabled={!canDraft}
+                    disabled={!canDraft || busy || uploading}
                     onClick={() => submit(NOTICE_STATUS.CLOSED)}
                   >
                     게시 종료
@@ -336,7 +399,7 @@ export default function NoticePage() {
                 <button
                   type="button"
                   className="nt-btn nt-btn-primary"
-                  disabled={!canPublish}
+                  disabled={!canPublish || busy || uploading}
                   onClick={() => submit(NOTICE_STATUS.PUBLISHED)}
                 >
                   {!isNew && selected.status === NOTICE_STATUS.PUBLISHED ? '수정 저장' : '게시하기'}
@@ -368,26 +431,8 @@ export default function NoticePage() {
                 </dl>
 
                 <div className="nt-view-body">{selected.body}</div>
-                {selected.attachments.map((a) =>
-                  isImage(a) ? (
-                    <img key={a.id} className="nt-view-image" src={a.url} alt={a.name} />
-                  ) : null,
-                )}
-                {selected.attachments.some((a) => !isImage(a)) && (
-                  <ul className="nt-files nt-files-view">
-                    {selected.attachments
-                      .filter((a) => !isImage(a))
-                      .map((a) => (
-                        <li key={a.id}>
-                          <Icon name="image" />
-                          <span className="nt-file-name">{a.name}</span>
-                          <span className="nt-file-size">{formatFileSize(a.size)}</span>
-                          <a className="om-chip" href={a.url} download={a.name}>
-                            다운로드
-                          </a>
-                        </li>
-                      ))}
-                  </ul>
+                {selected.image && (
+                  <img className="nt-view-image" src={selected.image.url} alt="공지 이미지" />
                 )}
               </div>
 
@@ -403,7 +448,8 @@ export default function NoticePage() {
                   <button
                     type="button"
                     className="nt-btn nt-btn-danger"
-                    onClick={() => closeNotice(selected.id)}
+                    disabled={busy}
+                    onClick={() => changeStatus(closeNotice, '게시를 종료했어요.')}
                   >
                     게시 종료
                   </button>
@@ -412,7 +458,8 @@ export default function NoticePage() {
                   <button
                     type="button"
                     className="nt-btn nt-btn-outline"
-                    onClick={() => reopenNotice(selected.id)}
+                    disabled={busy}
+                    onClick={() => changeStatus(reopenNotice, '다시 게시했어요.')}
                   >
                     다시 게시
                   </button>
@@ -430,6 +477,8 @@ export default function NoticePage() {
           )}
         </section>
       </div>
+
+      <Toast toast={toast} />
 
       {deleteOpen && selected && (
         <div className="om-confirm-overlay" onClick={() => setDeleteOpen(false)}>
@@ -449,11 +498,7 @@ export default function NoticePage() {
               <button
                 type="button"
                 className="om-btn om-btn-danger"
-                onClick={() => {
-                  deleteNotice(selected.id)
-                  setSelectedId(null)
-                  setDeleteOpen(false)
-                }}
+                onClick={remove}
               >
                 삭제
               </button>

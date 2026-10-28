@@ -1,24 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import * as boothApi from '../api/boothApi'
+import { getPublicMap } from '../api/mapApi'
 import FloorMap from '../components/FloorMap'
 import MenuSelect from '../components/MenuSelect'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
 import Select from '../components/Select'
+import Toast from '../components/Toast'
 import {
   BOOTH_CATEGORY_LABEL,
   BOOTH_OPERATING_STATUS as OP,
   BOOTH_OPERATING_STATUS_LABEL,
-  BOOTH_STATUS,
-  STOCK_LEVEL,
+  BOOTH_VISIBILITY,
+  BOOTH_VISIBILITY_LABEL,
   STOCK_LEVEL_LABEL,
+  STOCK_SUMMARY,
+  STOCK_SUMMARY_LABEL,
 } from '../constants/booth'
-import { useBooths } from '../context/useBooths'
-import { useMap } from '../context/useMap'
-import { nowTime } from '../utils/date'
+import { apiErrorMessage } from '../constants/errors'
+import { useEvent } from '../context/useEvent'
+import { instantToLocalDateTime, nowTime } from '../utils/date'
+import { useToast } from '../utils/useToast'
 import './live.css'
 
 const PAGE_SIZE = 8
-const AUTO_REFRESH_MS = 30000
+const AUTO_REFRESH_MS = 5000
 
 // Display order of the operating statuses (stat cards, filter, dropdowns).
 const OP_ORDER = [OP.PREPARING, OP.OPEN, OP.SOLD_OUT, OP.CLOSED]
@@ -26,6 +32,10 @@ const OP_OPTIONS = OP_ORDER.map((value) => ({ value, label: BOOTH_OPERATING_STAT
 const STOCK_OPTIONS = Object.keys(STOCK_LEVEL_LABEL).map((value) => ({
   value,
   label: STOCK_LEVEL_LABEL[value],
+}))
+const VISIBILITY_OPTIONS = [BOOTH_VISIBILITY.HIDDEN, BOOTH_VISIBILITY.PUBLIC].map((value) => ({
+  value,
+  label: BOOTH_VISIBILITY_LABEL[value],
 }))
 
 const OP_CLASS = {
@@ -35,82 +45,226 @@ const OP_CLASS = {
   [OP.CLOSED]: 'st-closed',
 }
 
-const soldOutCount = (booth) => booth.menus.filter((m) => m.stock === STOCK_LEVEL.SOLDOUT).length
+// The CSS class of each stock level's dropdown button (live.css).
+const STOCK_CLASS = {
+  UNLIMITED: 'sk-unlimited',
+  AVAILABLE: 'sk-plenty',
+  LOW: 'sk-low',
+  SOLD_OUT: 'sk-soldout',
+}
+
+// 'low' and 'sold out' deserve attention in the list.
+const isStockAlert = (summary) => summary === STOCK_SUMMARY.SOLD_OUT || summary === STOCK_SUMMARY.LOW
+
+const timeOf = (instant) => instantToLocalDateTime(instant).slice(11, 16)
+
+// The booth's own pin on its published map, in the shape FloorMap draws.
+const placementMap = (booth) =>
+  booth.mapPlacement && {
+    image: { url: booth.mapPlacement.imageUrl },
+    pins: [
+      {
+        id: booth.mapPlacement.pinId,
+        boothId: booth.eventBoothId,
+        name: booth.name,
+        boothCode: booth.boothCode,
+        xRatio: Number(booth.mapPlacement.xRatio),
+        yRatio: Number(booth.mapPlacement.yRatio),
+      },
+    ],
+  }
 
 export default function LivePage() {
   const navigate = useNavigate()
-  const { booths, setOperatingStatus, setMenuStock } = useBooths()
-  const { image, pins } = useMap()
-
-  // Only approved booths take part in the event, so only they are listed (and counted).
-  const approved = booths
-    .filter((b) => b.status === BOOTH_STATUS.APPROVED)
-    .sort((a, b) => (a.boothNo ?? Infinity) - (b.boothNo ?? Infinity))
-  // Placement comes from 지도 제작: a booth is placed once one of its pins carries its id.
-  const isPlaced = (id) => pins.some((p) => p.boothId === id)
+  const { event } = useEvent()
+  const { toast, notify } = useToast()
+  const eventId = event.id
 
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [stockFilter, setStockFilter] = useState('all') // 'all' | 'has' | 'none' sold-out menus
-  const [placeFilter, setPlaceFilter] = useState('all') // 'all' | 'placed' | 'unplaced'
+  const [stockFilter, setStockFilter] = useState('all') // 'all' | a STOCK_SUMMARY value
+  const [placeFilter, setPlaceFilter] = useState('all') // 'all' | 'ASSIGNED' | 'UNASSIGNED'
   const [page, setPage] = useState(1)
-  const [selectedId, setSelectedId] = useState(() => approved[0]?.id ?? null)
-  const [bigMapOpen, setBigMapOpen] = useState(false)
+  // undefined = nothing chosen yet (the first booth of the list is shown), null = none selected.
+  const [chosenId, setChosenId] = useState(undefined)
+  const [itemForm, setItemForm] = useState(null) // null = closed | { name, price, stock }
+  const [bigMap, setBigMap] = useState(null) // null = closed | { loading } | { image, pins, shared }
 
-  // ---- refresh clock (nothing to fetch yet: all data is local) ----
+  // ---- data from the backend, loaded again on every change and on every refresh ----
+  const [operations, setOperations] = useState(null) // { summary, booths: page, asOf }
+  const [loadError, setLoadError] = useState('')
+  const [detail, setDetail] = useState(null) // { id, data } — the booth detail last loaded
+  const [tick, setTick] = useState(0) // bump to load everything again
   const [refreshedAt, setRefreshedAt] = useState(nowTime)
   const [auto, setAuto] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  // TODO(backend): refetch booths (operating status, menu stock) here instead of only stamping the time.
+  // Search text is sent to the server after a short pause, not on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  useEffect(() => {
+    let alive = true
+    boothApi
+      .getOperations(eventId, {
+        page: page - 1,
+        size: PAGE_SIZE,
+        q: debouncedQuery,
+        operationStatus: statusFilter === 'all' ? '' : statusFilter,
+        stockSummary: stockFilter === 'all' ? '' : stockFilter,
+        placementStatus: placeFilter === 'all' ? '' : placeFilter,
+      })
+      .then((result) => {
+        if (!alive) return
+        setOperations(result)
+        setLoadError('')
+        setRefreshedAt(nowTime())
+      })
+      .catch((err) => alive && setLoadError(apiErrorMessage(err)))
+    return () => {
+      alive = false
+    }
+  }, [eventId, page, debouncedQuery, statusFilter, stockFilter, placeFilter, tick])
+
+  const rows = operations?.booths.content ?? []
+  const total = operations?.booths.totalElements ?? 0
+  const pageCount = Math.max(1, operations?.booths.totalPages ?? 1)
+  const current = Math.min(page, pageCount)
+  const start = (current - 1) * PAGE_SIZE
+  const summary = operations?.summary
+  const selectedId = chosenId === undefined ? (rows[0]?.eventBoothId ?? null) : chosenId
+
+  useEffect(() => {
+    if (!selectedId) return
+    let alive = true
+    boothApi
+      .getBooth(eventId, selectedId)
+      .then((data) => alive && setDetail({ id: selectedId, data }))
+      .catch((err) => alive && notify(apiErrorMessage(err), 'error'))
+    return () => {
+      alive = false
+    }
+  }, [eventId, selectedId, tick, notify])
+
+  // Polling: only while the tab is visible.
   useEffect(() => {
     if (!auto) return
-    const timer = setInterval(() => setRefreshedAt(nowTime()), AUTO_REFRESH_MS)
+    const timer = setInterval(() => {
+      if (!document.hidden) setTick((t) => t + 1)
+    }, AUTO_REFRESH_MS)
     return () => clearInterval(timer)
   }, [auto])
 
   const refresh = () => {
     if (refreshing) return
     setRefreshing(true)
-    setTimeout(() => {
-      setRefreshedAt(nowTime())
-      setRefreshing(false)
-    }, 500)
+    setTick((t) => t + 1)
+    setTimeout(() => setRefreshing(false), 500)
   }
 
+  // Esc closes the large map.
+  const bigMapOpen = bigMap !== null
   useEffect(() => {
     if (!bigMapOpen) return
-    const onKey = (e) => e.key === 'Escape' && setBigMapOpen(false)
+    const onKey = (e) => e.key === 'Escape' && setBigMap(null)
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [bigMapOpen])
 
-  // ---- numbers on the stat cards: computed from the booth list, like the dashboard ----
-  const countOp = (op) => approved.filter((b) => b.operatingStatus === op).length
-
-  // ---- filtering + paging ----
-  const filtered = approved
-    .filter((b) => b.name.includes(query.trim()))
-    .filter((b) => statusFilter === 'all' || b.operatingStatus === statusFilter)
-    .filter(
-      (b) =>
-        stockFilter === 'all' || (stockFilter === 'has' ? soldOutCount(b) > 0 : soldOutCount(b) === 0),
-    )
-    .filter(
-      (b) =>
-        placeFilter === 'all' || (placeFilter === 'placed' ? isPlaced(b.id) : !isPlaced(b.id)),
-    )
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const current = Math.min(page, pageCount)
-  const start = (current - 1) * PAGE_SIZE
-  const pageRows = filtered.slice(start, start + PAGE_SIZE)
   const resetPage = (fn) => (v) => {
     fn(v)
     setPage(1)
   }
 
-  const selected = approved.find((b) => b.id === selectedId) ?? null
-  const selectedPlaced = selected ? isPlaced(selected.id) : false
+  const selected = detail?.id === selectedId ? detail.data : null
+  const selectedPlaced = selected?.mapPlacement != null
+  const placed = selected ? placementMap(selected) : null
+
+  // Runs a write call; failures show as a message and the data is loaded again either way.
+  const write = async (action) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await action()
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+    } finally {
+      setBusy(false)
+      setTick((t) => t + 1)
+    }
+  }
+
+  const changeOperation = (boothId, revision, status) =>
+    write(() => boothApi.setOperationStatus(eventId, boothId, revision, status))
+
+  const changeVisibility = (visibilityStatus) =>
+    write(async () => {
+      await boothApi.patchBooth(eventId, selected.eventBoothId, {
+        revision: selected.revision,
+        visibilityStatus,
+      })
+      notify(visibilityStatus === BOOTH_VISIBILITY.PUBLIC ? '방문객에게 공개했어요.' : '비공개로 바꿨어요.')
+    })
+
+  const changeStock = (item, stockStatus) =>
+    // The backend answers with the changed item only; `write` loads the booth and the list again.
+    write(() =>
+      boothApi.patchItem(eventId, selected.eventBoothId, item.id, {
+        revision: item.revision,
+        stockStatus,
+      }),
+    )
+
+  const addItem = () => {
+    const name = itemForm.name.trim()
+    if (!name) return notify('메뉴 이름을 입력해 주세요.', 'error')
+    if (!/^\d*$/.test(itemForm.price)) return notify('가격은 숫자로 입력해 주세요.', 'error')
+    write(async () => {
+      await boothApi.createItem(eventId, selected.eventBoothId, {
+        name,
+        priceKrw: itemForm.price === '' ? null : Number(itemForm.price),
+        stockStatus: itemForm.stock,
+        sortOrder: selected.items.length,
+      })
+      setItemForm(null)
+      notify('메뉴를 추가했어요.')
+    })
+  }
+
+  const removeItem = (item) => {
+    if (!window.confirm(`'${item.name}' 메뉴를 삭제할까요?`)) return
+    write(async () => {
+      await boothApi.deleteItem(eventId, selected.eventBoothId, item.id, item.revision)
+      notify('메뉴를 삭제했어요.')
+    })
+  }
+
+  // The large map shows the map visitors see (all public booths). If that is not published yet,
+  // it falls back to this booth's own pin.
+  const openBigMap = async () => {
+    setBigMap({ loading: true })
+    try {
+      const map = await getPublicMap(eventId)
+      setBigMap({
+        shared: true,
+        image: { url: map.image.readUrl },
+        pins: map.pins.map((p) => ({
+          id: p.id,
+          boothId: p.eventBoothId ?? null,
+          name: p.boothName ?? p.label,
+          boothCode: p.boothCode ?? null,
+          xRatio: Number(p.xRatio),
+          yRatio: Number(p.yRatio),
+        })),
+      })
+    } catch {
+      setBigMap({ shared: false, ...placed })
+    }
+  }
 
   const stat = (label, value, tone = '') => (
     <div className={`lv-stat ${tone}`}>
@@ -118,6 +272,8 @@ export default function LivePage() {
       <strong>{value}</strong>
     </div>
   )
+
+  const soldOutItems = selected ? selected.items.filter((i) => i.stockStatus === 'SOLD_OUT').length : 0
 
   return (
     <OrganizerLayout
@@ -146,11 +302,11 @@ export default function LivePage() {
       }
     >
       <div className="lv-stats">
-        {stat('전체 부스', approved.length)}
-        {stat('준비 중', countOp(OP.PREPARING))}
-        {stat('운영 중', countOp(OP.OPEN), 'is-open')}
-        {stat('품절', countOp(OP.SOLD_OUT), 'is-soldout')}
-        {stat('마감', countOp(OP.CLOSED), 'is-closed')}
+        {stat('전체 부스', summary?.total ?? 0)}
+        {stat('준비 중', summary?.preparing ?? 0)}
+        {stat('운영 중', summary?.open ?? 0, 'is-open')}
+        {stat('품절', summary?.soldOut ?? 0, 'is-soldout')}
+        {stat('마감', summary?.closed ?? 0, 'is-closed')}
       </div>
 
       <div className="lv-grid">
@@ -158,7 +314,7 @@ export default function LivePage() {
         <section className="om-panel lv-list">
           <div className="lv-list-head">
             <h2 className="om-panel-title">부스 운영 목록</h2>
-            <span>전체 {approved.length}개</span>
+            <span>전체 {summary?.total ?? 0}개</span>
           </div>
 
           <div className="lv-filters">
@@ -179,14 +335,17 @@ export default function LivePage() {
               ))}
             </Select>
             <Select value={stockFilter} onChange={resetPage(setStockFilter)}>
-              <option value="all">전체 품절 현황</option>
-              <option value="has">품절 메뉴 있음</option>
-              <option value="none">품절 메뉴 없음</option>
+              <option value="all">전체 재고 현황</option>
+              {Object.entries(STOCK_SUMMARY_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </Select>
             <Select value={placeFilter} onChange={resetPage(setPlaceFilter)}>
               <option value="all">전체 배치</option>
-              <option value="placed">배치 완료</option>
-              <option value="unplaced">미배치</option>
+              <option value="ASSIGNED">배치 완료</option>
+              <option value="UNASSIGNED">미배치</option>
             </Select>
           </div>
 
@@ -197,56 +356,57 @@ export default function LivePage() {
                   <th>부스 번호</th>
                   <th>부스명</th>
                   <th>운영 상태</th>
-                  <th>품절 현황</th>
+                  <th>재고 현황</th>
                   <th>배치</th>
                   <th>상세</th>
                 </tr>
               </thead>
               <tbody>
-                {pageRows.map((b) => {
-                  const sold = soldOutCount(b)
-                  return (
-                    <tr
-                      key={b.id}
-                      className={b.id === selectedId ? 'is-selected' : ''}
-                      onClick={() => setSelectedId(b.id)}
-                    >
-                      <td>{b.boothNo ?? '-'}</td>
-                      <td className="lv-name">{b.name}</td>
-                      <td>
-                        <MenuSelect
-                          value={b.operatingStatus}
-                          options={OP_OPTIONS}
-                          buttonClassName={OP_CLASS[b.operatingStatus]}
-                          ariaLabel={`${b.name} 운영 상태`}
-                          onChange={(v) => setOperatingStatus(b.id, v)}
-                        />
-                      </td>
-                      <td className={sold > 0 ? 'lv-alert' : ''}>
-                        품절 메뉴 {sold}/{b.menus.length}
-                      </td>
-                      <td>{isPlaced(b.id) ? '배치 완료' : '미배치'}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="lv-view"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedId(b.id)
-                          }}
-                        >
-                          보기
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {pageRows.length === 0 && (
+                {rows.map((b) => (
+                  <tr
+                    key={b.eventBoothId}
+                    className={b.eventBoothId === selectedId ? 'is-selected' : ''}
+                    onClick={() => setChosenId(b.eventBoothId)}
+                  >
+                    <td>{b.boothCode}</td>
+                    <td className="lv-name">{b.name}</td>
+                    <td>
+                      <MenuSelect
+                        value={b.operationStatus}
+                        options={OP_OPTIONS}
+                        buttonClassName={OP_CLASS[b.operationStatus]}
+                        ariaLabel={`${b.name} 운영 상태`}
+                        disabled={busy}
+                        onChange={(v) => changeOperation(b.eventBoothId, b.revision, v)}
+                      />
+                    </td>
+                    <td className={isStockAlert(b.stockSummary) ? 'lv-alert' : ''}>
+                      {STOCK_SUMMARY_LABEL[b.stockSummary] ?? b.stockSummary}
+                    </td>
+                    <td>{b.placementStatus === 'ASSIGNED' ? '배치 완료' : '미배치'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="lv-view"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setChosenId(b.eventBoothId)
+                        }}
+                      >
+                        보기
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
                   <tr className="lv-empty">
                     <td colSpan={6}>
-                      {approved.length === 0
-                        ? '승인된 부스가 없어요. 부스 관리에서 신청을 승인해 주세요.'
-                        : '조건에 맞는 부스가 없어요.'}
+                      {loadError ||
+                        (operations === null
+                          ? '불러오는 중…'
+                          : summary.total === 0
+                            ? '승인된 부스가 없어요. 부스 관리에서 신청을 승인해 주세요.'
+                            : '조건에 맞는 부스가 없어요.')}
                     </td>
                   </tr>
                 )}
@@ -256,9 +416,7 @@ export default function LivePage() {
 
           <div className="lv-pager">
             <span>
-              {filtered.length === 0
-                ? '총 0개'
-                : `총 ${filtered.length}개 중 ${start + 1}–${start + pageRows.length}개`}
+              {total === 0 ? '총 0개' : `총 ${total}개 중 ${start + 1}–${start + rows.length}개`}
             </span>
             <div className="lv-pages">
               <button
@@ -290,107 +448,178 @@ export default function LivePage() {
             </div>
           </div>
           <p className="lv-note">
-            운영 상태를 눌러 변경하세요. 품절 메뉴 수 / 전체 메뉴 수를 표시합니다.
+            운영 상태를 눌러 변경하세요. 재고 현황은 부스의 메뉴 재고를 모아서 보여 줘요.
           </p>
         </section>
 
         {/* ---------- 부스 상세 ---------- */}
         <section className="om-panel lv-detail">
-          {selected ? (
+          {selectedId ? (
             <>
               <div className="lv-detail-head">
                 <h2 className="om-panel-title">부스 상세</h2>
-                <button type="button" className="lv-x" aria-label="닫기" onClick={() => setSelectedId(null)}>
+                <button type="button" className="lv-x" aria-label="닫기" onClick={() => setChosenId(null)}>
                   ×
                 </button>
               </div>
 
-              <div className="lv-detail-body">
-                <h3 className="lv-booth-title">
-                  {selected.boothNo != null && <span>{selected.boothNo}</span>}
-                  {selected.name}
-                </h3>
-                <div className="lv-chips">
-                  <span className="lv-cat">{BOOTH_CATEGORY_LABEL[selected.category]}</span>
-                  <MenuSelect
-                    value={selected.operatingStatus}
-                    options={OP_OPTIONS}
-                    buttonClassName={OP_CLASS[selected.operatingStatus]}
-                    ariaLabel="운영 상태 변경"
-                    onChange={(v) => setOperatingStatus(selected.id, v)}
-                  />
-                  <small>주최자 변경 가능</small>
-                </div>
-
-                <div className="lv-facts">
-                  <div>
-                    <span>품절 현황</span>
-                    <strong className={soldOutCount(selected) > 0 ? 'lv-alert' : ''}>
-                      품절 메뉴 {soldOutCount(selected)}/{selected.menus.length}
-                    </strong>
+              {selected ? (
+                <div className="lv-detail-body">
+                  <h3 className="lv-booth-title">
+                    <span>{selected.boothCode}</span>
+                    {selected.name}
+                  </h3>
+                  <div className="lv-chips">
+                    <span className="lv-cat">
+                      {BOOTH_CATEGORY_LABEL[selected.categoryCode] ?? selected.categoryCode}
+                    </span>
+                    <MenuSelect
+                      value={selected.operationStatus}
+                      options={OP_OPTIONS}
+                      buttonClassName={OP_CLASS[selected.operationStatus]}
+                      ariaLabel="운영 상태 변경"
+                      disabled={busy}
+                      onChange={(v) => changeOperation(selected.eventBoothId, selected.revision, v)}
+                    />
+                    <small>주최자 변경 가능</small>
                   </div>
-                  <div>
-                    <span>최근 변경</span>
-                    <strong>{selected.statusChangedAt.slice(11, 16)}</strong>
+
+                  <div className="lv-facts">
+                    <div>
+                      <span>재고 현황</span>
+                      <strong className={isStockAlert(selected.stockSummary) ? 'lv-alert' : ''}>
+                        {selected.items.length === 0
+                          ? STOCK_SUMMARY_LABEL[selected.stockSummary]
+                          : `품절 메뉴 ${soldOutItems}/${selected.items.length}`}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>최근 변경</span>
+                      <strong>{timeOf(selected.lastChangedAt)}</strong>
+                    </div>
                   </div>
-                </div>
 
-                <div className="lv-sec-head">
-                  <h4>부스 위치</h4>
-                  <span className={`lv-place${selectedPlaced ? ' is-placed' : ''}`}>
-                    {selectedPlaced ? '배치 완료' : '미배치'}
-                  </span>
-                </div>
-                {image ? (
-                  <FloorMap
-                    image={image}
-                    pins={pins}
-                    booths={booths}
-                    highlightBoothId={selected.id}
-                    maxHeight="190px"
-                  />
-                ) : (
-                  <div className="lv-map-empty">
-                    <p>아직 평면도가 없어요.</p>
-                    <button type="button" className="lv-link" onClick={() => navigate('/organizer/map')}>
-                      지도 제작에서 평면도 올리기
-                    </button>
+                  <div className="lv-visibility">
+                    <span>방문객 공개</span>
+                    <MenuSelect
+                      value={selected.visibilityStatus}
+                      options={VISIBILITY_OPTIONS}
+                      ariaLabel="방문객 공개 여부"
+                      disabled={busy}
+                      onChange={changeVisibility}
+                    />
+                    <small>공개해야 방문객 지도와 목록에 보여요.</small>
                   </div>
-                )}
-                {image && !selectedPlaced && (
-                  <p className="lv-map-hint">
-                    지도 제작에서 이 부스를 핀에 할당하면 위치가 표시돼요.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  className="lv-wide-btn"
-                  disabled={!image}
-                  onClick={() => setBigMapOpen(true)}
-                >
-                  지도에서 크게 보기
-                </button>
 
-                <h4 className="lv-h4">부스 소개</h4>
-                <p className="lv-intro">{selected.intro}</p>
+                  <div className="lv-sec-head">
+                    <h4>부스 위치</h4>
+                    <span className={`lv-place${selectedPlaced ? ' is-placed' : ''}`}>
+                      {selectedPlaced ? '배치 완료' : '미배치'}
+                    </span>
+                  </div>
+                  {placed ? (
+                    <FloorMap
+                      image={placed.image}
+                      pins={placed.pins}
+                      highlightBoothId={selected.eventBoothId}
+                      maxHeight="190px"
+                    />
+                  ) : (
+                    <div className="lv-map-empty">
+                      <p>아직 게시된 지도에 배치되지 않았어요.</p>
+                      <button type="button" className="lv-link" onClick={() => navigate('/organizer/map')}>
+                        지도 제작에서 배치하고 게시하기
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="lv-wide-btn"
+                    disabled={!selectedPlaced}
+                    onClick={openBigMap}
+                  >
+                    지도에서 크게 보기
+                  </button>
 
-                <h4 className="lv-h4">메뉴별 재고 · 클릭하여 변경</h4>
-                <ul className="lv-menus">
-                  {selected.menus.map((m) => (
-                    <li key={m.id}>
-                      <span>{m.name}</span>
-                      <MenuSelect
-                        value={m.stock}
-                        options={STOCK_OPTIONS}
-                        buttonClassName={`sk-${m.stock}`}
-                        ariaLabel={`${m.name} 재고`}
-                        onChange={(v) => setMenuStock(selected.id, m.id, v)}
+                  <h4 className="lv-h4">부스 소개</h4>
+                  <p className="lv-intro">{selected.description || '소개가 아직 없어요.'}</p>
+
+                  <h4 className="lv-h4">메뉴별 재고 · 클릭하여 변경</h4>
+                  <ul className="lv-menus">
+                    {selected.items.map((m) => (
+                      <li key={m.id}>
+                        <span>{m.name}</span>
+                        <MenuSelect
+                          value={m.stockStatus}
+                          options={STOCK_OPTIONS}
+                          buttonClassName={STOCK_CLASS[m.stockStatus]}
+                          ariaLabel={`${m.name} 재고`}
+                          disabled={busy}
+                          onChange={(v) => changeStock(m, v)}
+                        />
+                        <button
+                          type="button"
+                          className="lv-item-remove"
+                          aria-label={`${m.name} 삭제`}
+                          disabled={busy}
+                          onClick={() => removeItem(m)}
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                    {selected.items.length === 0 && <li>등록된 메뉴가 없어요.</li>}
+                  </ul>
+                  {itemForm ? (
+                    <div className="lv-item-form">
+                      <input
+                        autoFocus
+                        placeholder="메뉴 이름"
+                        maxLength={100}
+                        value={itemForm.name}
+                        onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+                        onKeyDown={(e) => e.key === 'Enter' && addItem()}
                       />
-                    </li>
-                  ))}
-                </ul>
-                <p className="lv-legend">재고 단계: 무제한 / 충분 / 부족 / 품절</p>
-              </div>
+                      <input
+                        placeholder="가격(원, 선택)"
+                        inputMode="numeric"
+                        maxLength={9}
+                        value={itemForm.price}
+                        onChange={(e) => setItemForm({ ...itemForm, price: e.target.value.replace(/\D/g, '') })}
+                        onKeyDown={(e) => e.key === 'Enter' && addItem()}
+                      />
+                      <MenuSelect
+                        value={itemForm.stock}
+                        options={STOCK_OPTIONS}
+                        buttonClassName={STOCK_CLASS[itemForm.stock]}
+                        ariaLabel="새 메뉴 재고"
+                        onChange={(stock) => setItemForm({ ...itemForm, stock })}
+                      />
+                      <div className="lv-item-form-actions">
+                        <button type="button" className="om-chip" disabled={busy} onClick={addItem}>
+                          추가
+                        </button>
+                        <button type="button" className="om-chip" onClick={() => setItemForm(null)}>
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="lv-wide-btn lv-item-add"
+                      onClick={() => setItemForm({ name: '', price: '', stock: 'AVAILABLE' })}
+                    >
+                      + 메뉴 추가
+                    </button>
+                  )}
+                  <p className="lv-legend">재고 단계: 무제한 / 충분 / 부족 / 품절</p>
+                </div>
+              ) : (
+                <div className="lv-detail-empty">
+                  <p>불러오는 중…</p>
+                </div>
+              )}
             </>
           ) : (
             <div className="lv-detail-empty">
@@ -402,8 +631,8 @@ export default function LivePage() {
       </div>
 
       {/* ---------- 지도에서 크게 보기 ---------- */}
-      {bigMapOpen && image && (
-        <div className="om-confirm-overlay" onClick={() => setBigMapOpen(false)}>
+      {bigMapOpen && (
+        <div className="om-confirm-overlay" onClick={() => setBigMap(null)}>
           <div
             className="lv-bigmap"
             role="dialog"
@@ -413,28 +642,34 @@ export default function LivePage() {
           >
             <div className="lv-bigmap-head">
               <h2 id="lv-bigmap-title">행사장 지도</h2>
-              <button type="button" className="lv-x" aria-label="닫기" onClick={() => setBigMapOpen(false)}>
+              <button type="button" className="lv-x" aria-label="닫기" onClick={() => setBigMap(null)}>
                 ×
               </button>
             </div>
             <p className="lv-bigmap-sub">
-              {selected ? `${selected.name} 위치를 강조해서 보여요. ` : ''}
-              핀을 누르면 그 부스를 선택해요.
+              {bigMap.loading
+                ? '지도를 불러오는 중…'
+                : bigMap.shared
+                  ? `${selected ? `${selected.name} 위치를 강조해서 보여요. ` : ''}핀을 누르면 그 부스를 선택해요. (방문객에게 공개된 부스만 나와요)`
+                  : '게시된 지도가 없어서 이 부스의 위치만 보여요.'}
             </p>
             <div className="lv-bigmap-body">
-              <FloorMap
-                image={image}
-                pins={pins}
-                booths={booths}
-                highlightBoothId={selectedId}
-                labelBooths
-                onSelectBooth={setSelectedId}
-                maxHeight="calc(100vh - 230px)"
-              />
+              {!bigMap.loading && (
+                <FloorMap
+                  image={bigMap.image}
+                  pins={bigMap.pins}
+                  highlightBoothId={selectedId}
+                  labelBooths
+                  onSelectBooth={setChosenId}
+                  maxHeight="calc(100vh - 230px)"
+                />
+              )}
             </div>
           </div>
         </div>
       )}
+
+      <Toast toast={toast} />
     </OrganizerLayout>
   )
 }

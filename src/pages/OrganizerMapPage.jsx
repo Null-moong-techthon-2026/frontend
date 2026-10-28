@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { listAllBooths } from '../api/boothApi'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
-import { BOOTH_STATUS } from '../constants/booth'
-import { FACILITIES, PIN_TYPE } from '../constants/map'
-import { useBooths } from '../context/useBooths'
+import Toast from '../components/Toast'
+import { BOOTH_CATEGORY_LABEL } from '../constants/booth'
+import { apiErrorMessage } from '../constants/errors'
+import { FACILITIES, MAP_IMAGE_MAX_BYTES, MAP_IMAGE_TYPES, MAP_PIN_MAX, PIN_TYPE } from '../constants/map'
+import { useEvent } from '../context/useEvent'
 import { useMap } from '../context/useMap'
+import { useToast } from '../utils/useToast'
 import pinBooth from '../assets/pins/pin-booth.svg'
 import pinToilet from '../assets/pins/pin-toilet.svg'
 import pinInfo from '../assets/pins/pin-info.svg'
@@ -64,8 +68,28 @@ export default function OrganizerMapPage() {
   const [selected, setSelected] = useState(null)
   const [tab, setTab] = useState('unplaced')
   const [facility, setFacility] = useState(PIN_TYPE.BOOTH)
-  // The floor plan and pins live in MapProvider so other screens (실시간 운영 현황) can read them.
-  const { image, setImage, pins, setPins } = useMap()
+  // The draft floor plan and its pins live in MapProvider (saved to / loaded from the backend).
+  const {
+    image,
+    pins,
+    setPins,
+    draft,
+    published,
+    dirty,
+    loading,
+    error: mapError,
+    uploadFloorPlan,
+    startFromPublished,
+    savePins,
+    publish,
+    discardDraft,
+  } = useMap()
+  const { event } = useEvent()
+  const { toast, notify } = useToast()
+  const [busy, setBusy] = useState(false)
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [boothQuery, setBoothQuery] = useState('')
+  const [booths, setBooths] = useState([]) // { id, code, name, category } of every registered booth
   const [dragging, setDragging] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -81,13 +105,74 @@ export default function OrganizerMapPage() {
   const stageRef = useRef(null)
   const viewportRef = useRef(null)
   const dragRef = useRef(null)
-  // A booth counts as placed once some pin carries its number.
-  // Only approved booths (from 부스 관리) can be placed on the map.
-  const BOOTHS = useBooths().booths.filter((b) => b.status === BOOTH_STATUS.APPROVED)
+  // A booth counts as placed once some pin carries its id.
+  // Only approved or registered booths (from 부스 관리) exist as booths and can be placed.
+  const BOOTHS = booths
   const isPlaced = (id) => pins.some((p) => p.boothId === id)
-  const visibleBooths = tab === 'unplaced' ? BOOTHS.filter((b) => !isPlaced(b.id)) : BOOTHS
+  const search = boothQuery.trim().toLowerCase()
+  const visibleBooths = BOOTHS.filter((b) => tab === 'all' || !isPlaced(b.id)).filter(
+    (b) => !search || b.name.toLowerCase().includes(search) || b.code.toLowerCase().includes(search),
+  )
   const totalCount = BOOTHS.length
   const placedCount = BOOTHS.filter((b) => isPlaced(b.id)).length
+  // What a pin is called: the booth's name, or the facility's label.
+  const pinName = (pin) =>
+    pin.boothId
+      ? (BOOTHS.find((b) => b.id === pin.boothId)?.name ?? '')
+      : pin.type === PIN_TYPE.BOOTH
+        ? ''
+        : pin.label
+
+  // What visitors will NOT see on the published map: booth pins without a booth, and pins whose
+  // booth is still hidden from visitors (the backend leaves both out of the public map).
+  const boothPins = pins.filter((p) => p.type === PIN_TYPE.BOOTH)
+  const unassignedPins = boothPins.filter((p) => !p.boothId).length
+  const hiddenPins = boothPins.filter(
+    (p) => p.boothId && !BOOTHS.find((b) => b.id === p.boothId)?.visible,
+  ).length
+  const publishWarnings = [
+    unassignedPins > 0 &&
+      `부스가 할당되지 않은 부스 핀이 ${unassignedPins}개 있어요. 게시해도 방문객 지도에는 나오지 않아요.`,
+    hiddenPins > 0 &&
+      `핀에 할당된 부스 ${hiddenPins}개가 방문객에게 비공개 상태예요. 실시간 운영 현황에서 공개로 바꾸기 전까지 방문객 지도에 나오지 않아요.`,
+  ].filter(Boolean)
+
+  useEffect(() => {
+    let alive = true
+    listAllBooths(event.id)
+      .then((list) => {
+        if (!alive) return
+        setBooths(
+          list.map((b) => ({
+            id: b.eventBoothId,
+            code: b.boothCode,
+            name: b.name,
+            category: b.categoryCode,
+            visible: b.visibilityStatus === 'PUBLIC',
+          })),
+        )
+      })
+      .catch((err) => alive && notify(apiErrorMessage(err), 'error'))
+    return () => {
+      alive = false
+    }
+  }, [event.id, notify])
+
+  // Runs a backend call with the buttons locked; failures show as a message.
+  const run = async (action, successMessage) => {
+    if (busy) return false
+    setBusy(true)
+    try {
+      await action()
+      if (successMessage) notify(successMessage)
+      return true
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const zoomTo = (nz) => {
     const z = clampZoom(nz)
@@ -130,17 +215,17 @@ export default function OrganizerMapPage() {
     dragRef.current = null
   }
 
-  // TODO(backend): upload the file and keep the returned server URL instead of a blob: URL.
-  const loadFile = (file) => {
-    if (!file || !file.type.startsWith('image/')) return
-    setImage((prev) => {
-      if (prev) URL.revokeObjectURL(prev.url)
-      return { url: URL.createObjectURL(file), name: file.name, width: 0, height: 0 }
-    })
-    setPins([])
-    setPlacing(false)
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
+  // Uploads the image and starts a draft map with it.
+  const loadFile = async (file) => {
+    if (!file) return
+    if (!MAP_IMAGE_TYPES.includes(file.type)) return notify('PNG 또는 JPG 이미지만 올릴 수 있어요.', 'error')
+    if (file.size > MAP_IMAGE_MAX_BYTES) return notify('이미지는 최대 10MB까지 올릴 수 있어요.', 'error')
+    const ok = await run(() => uploadFloorPlan(file), '평면도를 올렸어요.')
+    if (ok) {
+      setPlacing(false)
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+    }
   }
 
   const handleDrop = (e) => {
@@ -149,15 +234,35 @@ export default function OrganizerMapPage() {
     loadFile(e.dataTransfer.files[0])
   }
 
-  const removeImage = () => {
-    setImage((prev) => {
-      if (prev) URL.revokeObjectURL(prev.url)
-      return null
-    })
-    setZoom(1)
-    setPan({ x: 0, y: 0 })
-    setPins([])
-    setPlacing(false)
+  // Deleting the image deletes the whole draft (its pins too). The published map stays.
+  const removeImage = async () => {
+    const ok = await run(discardDraft, '편집 중이던 지도를 삭제했어요.')
+    if (ok) {
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+      setPlacing(false)
+      setActivePinId(null)
+      setSelected(null)
+    }
+  }
+
+  const save = () => run(savePins, '지도를 저장했어요.')
+
+  const publishNow = async () => {
+    setPublishOpen(false)
+    const ok = await run(publish, '지도를 게시했어요. 이제 방문객에게 보여요.')
+    if (ok) {
+      setActivePinId(null)
+      setSelected(null)
+    }
+  }
+
+  const startFromPublishedMap = async () => {
+    const ok = await run(startFromPublished, '게시된 지도로 편집을 시작했어요.')
+    if (ok) {
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+    }
   }
 
   // Fraction of the square stage that the object-fit:contain image occupies.
@@ -181,7 +286,7 @@ export default function OrganizerMapPage() {
     const booth = BOOTHS.find((b) => b.id === selected)
     if (!activePin || activePin.type !== PIN_TYPE.BOOTH || !booth || isPlaced(booth.id)) return
     setPins((prev) =>
-      prev.map((p) => (p.id === activePin.id ? { ...p, boothId: booth.id, name: booth.name } : p)),
+      prev.map((p) => (p.id === activePin.id ? { ...p, boothId: booth.id, label: booth.code } : p)),
     )
   }
 
@@ -260,8 +365,12 @@ export default function OrganizerMapPage() {
     const u = pt.x / image.width
     const v = pt.y / image.height
     if (u < 0 || u > 1 || v < 0 || v > 1) return
-    // Pins now outlive this page, so pick an id that is free among the existing pins.
-    const id = Math.max(0, ...pins.map((p) => p.id)) + 1
+    if (pins.length >= MAP_PIN_MAX) {
+      setPlacing(false)
+      return notify(`핀은 최대 ${MAP_PIN_MAX}개까지 만들 수 있어요.`, 'error')
+    }
+    // Pin ids are made here (the backend keeps them), so use a UUID.
+    const id = crypto.randomUUID()
     setActivePinId(id)
     setSelected(null)
     setPins((prev) => [
@@ -269,7 +378,7 @@ export default function OrganizerMapPage() {
       {
         id,
         type: facility,
-        name: '',
+        label: FACILITIES.find((f) => f.key === facility).label,
         boothId: null,
         x: Math.round(u * image.width),
         y: Math.round(v * image.height),
@@ -286,9 +395,24 @@ export default function OrganizerMapPage() {
       subtitle="평면도 위에 핀을 만들고, 승인된 부스를 배치하세요."
       actions={
         <>
+          {dirty && <span className="om-dirty">저장하지 않은 변경 사항이 있어요</span>}
           <button type="button" className="om-btn om-btn-outline">미리보기</button>
-          {/* TODO(backend): save { floorplan: image, pins } (PUT /map). */}
-          <button type="button" className="om-btn om-btn-primary">저장하기</button>
+          <button
+            type="button"
+            className="om-btn om-btn-outline"
+            disabled={!draft || busy || !dirty}
+            onClick={save}
+          >
+            저장하기
+          </button>
+          <button
+            type="button"
+            className="om-btn om-btn-primary"
+            disabled={!draft || busy}
+            onClick={() => setPublishOpen(true)}
+          >
+            게시하기
+          </button>
         </>
       }
     >
@@ -307,20 +431,42 @@ export default function OrganizerMapPage() {
             >
               <input
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg"
                 className="om-file-input"
-                onChange={(e) => loadFile(e.target.files[0])}
+                disabled={busy || loading}
+                onChange={(e) => {
+                  loadFile(e.target.files[0])
+                  e.target.value = ''
+                }}
               />
               <Icon name="upload" />
-              <p className="om-dropzone-title">평면도 업로드</p>
+              <p className="om-dropzone-title">{busy ? '올리는 중…' : '평면도 업로드'}</p>
               <p className="om-dropzone-sub">이미지를 끌어서 놓거나 클릭해서 선택하세요.</p>
-              <p className="om-dropzone-sub">PNG, JPG</p>
+              <p className="om-dropzone-sub">PNG, JPG · 최대 10MB</p>
             </label>
             )}
+            {!image && published && (
+              <div className="om-published">
+                <p>
+                  <strong>게시된 지도 v{published.versionNo}</strong>가 있어요. 방문객에게는 이 지도가
+                  보여요.
+                </p>
+                <button
+                  type="button"
+                  className="om-btn om-btn-outline om-btn-block"
+                  disabled={busy}
+                  onClick={startFromPublishedMap}
+                >
+                  게시된 지도로 수정 시작
+                </button>
+              </div>
+            )}
+            {mapError && !loading && <p className="om-map-error">{apiErrorMessage(mapError)}</p>}
             {image && (
               <div className="om-file">
                 <Icon name="image" />
                 <span className="om-file-name">{image.name}</span>
+                {draft && <span className="om-file-version">초안 v{draft.versionNo}</span>}
               </div>
             )}
 
@@ -406,11 +552,6 @@ export default function OrganizerMapPage() {
                       alt="행사장 평면도"
                       className="om-map-image"
                       draggable={false}
-                      onLoad={(e) => {
-                        // Read before the updater runs: currentTarget is null by then.
-                        const { naturalWidth: width, naturalHeight: height } = e.currentTarget
-                        setImage((prev) => prev && { ...prev, width, height })
-                      }}
                     />
                     {pins.map((pin) => {
                       const box = containRect()
@@ -428,7 +569,7 @@ export default function OrganizerMapPage() {
                           <button
                             type="button"
                             className="om-pin-btn"
-                            aria-label={`${pin.name}번 핀`}
+                            aria-label={`${pinName(pin) || '부스'} 핀`}
                             onPointerDown={(e) => handlePinPointerDown(e, pin)}
                             onPointerMove={handlePinPointerMove}
                             onPointerUp={handlePinPointerUp}
@@ -491,7 +632,7 @@ export default function OrganizerMapPage() {
               >
                 <h2 id="om-pin-confirm-title">핀을 삭제할까요?</h2>
                 <p>
-                  {activePin.name ? `'${activePin.name}' 핀이` : '선택한 핀이'} 지도에서 삭제되며,
+                  {pinName(activePin) ? `'${pinName(activePin)}' 핀이` : '선택한 핀이'} 지도에서 삭제되며,
                   할당된 부스는 미배치로 돌아가요.
                 </p>
                 <div className="om-confirm-actions">
@@ -523,7 +664,10 @@ export default function OrganizerMapPage() {
                 onClick={(e) => e.stopPropagation()}
               >
                 <h2 id="om-confirm-title">평면도를 삭제할까요?</h2>
-                <p>업로드한 이미지가 삭제되며, 이 작업은 되돌릴 수 없어요.</p>
+                <p>
+                  편집 중인 평면도와 핀이 모두 삭제되며, 이 작업은 되돌릴 수 없어요. 이미 게시한 지도는
+                  그대로 남아요.
+                </p>
                 <div className="om-confirm-actions">
                   <button type="button" className="om-btn om-btn-outline" onClick={() => setConfirmOpen(false)}>
                     취소
@@ -532,8 +676,8 @@ export default function OrganizerMapPage() {
                     type="button"
                     className="om-btn om-btn-danger"
                     onClick={() => {
-                      removeImage()
                       setConfirmOpen(false)
+                      removeImage()
                     }}
                   >
                     삭제
@@ -561,7 +705,7 @@ export default function OrganizerMapPage() {
             </div>
 
             <label className="om-label">핀 이름</label>
-            <input className="om-input om-input-lg" value={activePin ? activePin.name : ''} readOnly />
+            <input className="om-input om-input-lg" value={activePin ? pinName(activePin) : ''} readOnly />
 
             <label className="om-label om-mt-sm">핀 좌표 (이미지 픽셀)</label>
             <div className="om-coords">
@@ -587,7 +731,7 @@ export default function OrganizerMapPage() {
             </div>
 
             <h2 className="om-panel-title om-mt">승인된 부스 할당</h2>
-            <p className="om-panel-sub">승인된 부스만 지도에 배치할 수 있어요.</p>
+            <p className="om-panel-sub">승인했거나 직접 등록한 부스만 지도에 배치할 수 있어요.</p>
 
             <div className="om-stats">
               <div className="om-stat">
@@ -604,9 +748,21 @@ export default function OrganizerMapPage() {
               </div>
             </div>
 
+            {publishWarnings.length > 0 && (
+              <ul className="om-warn">
+                {publishWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            )}
+
             <label className="om-search om-booth-search">
               <Icon name="search" />
-              <input placeholder="부스명 · 부스 번호 검색" />
+              <input
+                placeholder="부스명 · 부스 번호 검색"
+                value={boothQuery}
+                onChange={(e) => setBoothQuery(e.target.value)}
+              />
             </label>
 
             <div className="om-segment">
@@ -636,13 +792,20 @@ export default function OrganizerMapPage() {
                     onClick={() => setSelected(b.id)}
                   >
                     <span className={`om-radio${selected === b.id ? ' is-on' : ''}`} />
-                    <span className="om-booth-no">{b.id}</span>
+                    <span className="om-booth-no">{b.code}</span>
                     <span className="om-booth-name">{b.name}</span>
-                    <span className="om-booth-cat">{b.category}</span>
+                    <span className="om-booth-cat">{BOOTH_CATEGORY_LABEL[b.category] ?? b.category}</span>
                     <span className="om-tag-fill">{isPlaced(b.id) ? '배치 완료' : '미배치'}</span>
                   </button>
                 </li>
               ))}
+              {visibleBooths.length === 0 && (
+                <li className="om-booth-empty">
+                  {BOOTHS.length === 0
+                    ? '아직 승인된 부스가 없어요. 부스 관리에서 신청을 승인해 주세요.'
+                    : '조건에 맞는 부스가 없어요.'}
+                </li>
+              )}
             </ul>
 
             <p className="om-note">선택한 부스가 지도에 배치돼요.</p>
@@ -658,6 +821,40 @@ export default function OrganizerMapPage() {
             </button>
           </section>
         </div>
+      {publishOpen && (
+        <div className="om-confirm-overlay" onClick={() => setPublishOpen(false)}>
+          <div
+            className="om-confirm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="om-publish-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="om-publish-title">지도를 게시할까요?</h2>
+            <p>
+              {dirty ? '저장하지 않은 변경 사항을 저장한 뒤 ' : ''}편집 중인 지도를 게시해요. 방문객에게는
+              이 지도가 보이고, 이전에 게시한 지도는 보관돼요.
+            </p>
+            {publishWarnings.length > 0 && (
+              <ul className="om-warn">
+                {publishWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            )}
+            <div className="om-confirm-actions">
+              <button type="button" className="om-btn om-btn-outline" onClick={() => setPublishOpen(false)}>
+                취소
+              </button>
+              <button type="button" className="om-btn om-btn-primary" onClick={publishNow}>
+                게시
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Toast toast={toast} />
     </OrganizerLayout>
   )
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { checkLoginId, signUp } from '../api/authApi'
-import { authErrorMessage } from '../constants/auth'
+import { ONBOARDING_TYPE, authErrorMessage } from '../constants/auth'
+import { rememberOperator } from '../utils/role'
 import {
   normalizePhone,
   validateEmail,
@@ -80,7 +81,7 @@ export default function SignupForm({ type, title, submitLabel, phoneVerification
     setServerError('')
     setSubmitting(true)
     try {
-      await signUp({
+      const { accountId } = await signUp({
         onboardingType: type,
         loginId: form.loginId,
         password: form.password,
@@ -88,6 +89,7 @@ export default function SignupForm({ type, title, submitLabel, phoneVerification
         phoneNumber: normalizePhone(form.phone),
         email: form.email.trim(),
       })
+      if (type === ONBOARDING_TYPE.OPERATOR) rememberOperator(accountId)
       navigate('/login', { replace: true, state: { signedUp: true } })
     } catch (err) {
       if (err.code === 'LOGIN_ID_TAKEN') {

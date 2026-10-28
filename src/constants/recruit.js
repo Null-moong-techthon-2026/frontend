@@ -13,12 +13,12 @@ export const RECRUIT_STATUS_LABEL = {
   [RECRUIT_STATUS.PRIVATE]: '비공개',
 }
 
-// Input limits (shown in the form; the backend should enforce the same).
+// Input limits (the backend enforces its own, larger ones; these keep the form tidy).
 export const RECRUIT_INTRO_MAX = 300
-export const RECRUIT_FEE_MAX = 60
-export const RECRUIT_CONTACT_MAX = 80
+export const RECRUIT_FEE_NOTE_MAX = 200
 export const RECRUIT_DOC_LABEL_MAX = 30
-export const RECRUIT_DOC_MAX = 10 // required-document rows, defaults included
+export const RECRUIT_DOC_MAX = 10 // required-document rows
 export const RECRUIT_TARGET_MAX = 999
+export const RECRUIT_FEE_MAX_KRW = 100000000
 
 export const RECRUIT_FEE_NOTE = '납부 방식과 시기는 승인된 운영자에게 별도 안내'

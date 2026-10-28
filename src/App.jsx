@@ -9,6 +9,8 @@ import OrganizerMapPage from './pages/OrganizerMapPage'
 import BoothManagePage from './pages/BoothManagePage'
 import DashboardPage from './pages/DashboardPage'
 import LivePage from './pages/LivePage'
+import OrganizerStaffPage from './pages/OrganizerStaffPage'
+import OrganizerStatsPage from './pages/OrganizerStatsPage'
 import RecruitPage from './pages/RecruitPage'
 import NoticePage from './pages/NoticePage'
 import EventApplyPage from './pages/EventApplyPage'
@@ -118,6 +120,8 @@ function App() {
           <Route path="/organizer/notices" element={<NoticePage />} />
           <Route path="/organizer/recruit" element={<RecruitPage />} />
           <Route path="/organizer/live" element={<LivePage />} />
+          <Route path="/organizer/staff" element={<OrganizerStaffPage />} />
+          <Route path="/organizer/stats" element={<OrganizerStatsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

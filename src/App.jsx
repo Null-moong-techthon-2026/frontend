@@ -21,6 +21,7 @@ import MapProvider from './context/MapProvider'
 import RecruitProvider from './context/RecruitProvider'
 import InvitationProvider from './context/InvitationProvider'
 import EventProvider from './context/EventProvider'
+import NavGuardProvider from './context/NavGuardProvider'
 import './App.css'
 
 // 5 auth wireframes + routing between them:
@@ -35,6 +36,7 @@ import './App.css'
 function App() {
   return (
     <AuthProvider>
+    <NavGuardProvider>
     <EventProvider>
     <RecruitProvider>
     <InvitationProvider>
@@ -72,6 +74,7 @@ function App() {
     </InvitationProvider>
     </RecruitProvider>
     </EventProvider>
+    </NavGuardProvider>
     </AuthProvider>
   )
 }

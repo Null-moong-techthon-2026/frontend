@@ -19,6 +19,7 @@ import {
 } from '../constants/recruit'
 import { useBooths } from '../context/useBooths'
 import { useEvent } from '../context/useEvent'
+import { useLeaveGuard } from '../context/useLeaveGuard'
 import { useRecruit } from '../context/useRecruit'
 import { formatDateTime } from '../utils/date'
 import { fileExtension, formatFileSize } from '../utils/file'
@@ -150,7 +151,7 @@ function RecruitEditor({ event, recruit }) {
 
   const save = async () => {
     setShowErrors(true)
-    if (hasErrors || busy || uploading) return
+    if (hasErrors || busy || uploading) return false
     const next = normalize(form)
     setBusy(true)
     try {
@@ -172,12 +173,17 @@ function RecruitEditor({ event, recruit }) {
       setForm(toForm(savedEvent, savedRecruit))
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 2500)
+      return true
     } catch (err) {
       notify(apiErrorMessage(err), 'error')
+      return false
     } finally {
       setBusy(false)
     }
   }
+
+  // Leaving 부스 모집 with unsaved changes asks first (the form is local, so 'no' just drops it).
+  useLeaveGuard({ dirty, save })
 
   const publish = async (published) => {
     if (busy) return

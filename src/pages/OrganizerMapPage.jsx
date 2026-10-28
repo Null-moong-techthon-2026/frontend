@@ -6,6 +6,7 @@ import { BOOTH_CATEGORY_LABEL } from '../constants/booth'
 import { apiErrorMessage } from '../constants/errors'
 import { FACILITIES, MAP_IMAGE_MAX_BYTES, MAP_IMAGE_TYPES, MAP_PIN_MAX, PIN_TYPE } from '../constants/map'
 import { useEvent } from '../context/useEvent'
+import { useLeaveGuard } from '../context/useLeaveGuard'
 import { useMap } from '../context/useMap'
 import { useToast } from '../utils/useToast'
 import pinBooth from '../assets/pins/pin-booth.svg'
@@ -82,6 +83,7 @@ export default function OrganizerMapPage() {
     startFromPublished,
     savePins,
     publish,
+    discardEdits,
     discardDraft,
   } = useMap()
   const { event } = useEvent()
@@ -247,6 +249,9 @@ export default function OrganizerMapPage() {
   }
 
   const save = () => run(savePins, '지도를 저장했어요.')
+
+  // Leaving 지도 제작 with unsaved pins asks first; 'no' drops them so 부스 관리 never shows them.
+  useLeaveGuard({ dirty, save, discard: discardEdits })
 
   const publishNow = async () => {
     setPublishOpen(false)

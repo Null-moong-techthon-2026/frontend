@@ -22,6 +22,7 @@ import { useEventData } from './useEventData'
 //   startFromPublished()     starts a draft that is a copy of the published map (image + pins)
 //   savePins()               saves the whole pin set of the draft
 //   publish()                saves, then publishes the draft; the old published map is archived
+//   discardEdits()           throws away the unsaved pin edits (back to the last saved pins)
 //   discardDraft()           deletes the draft with its pins
 // All of them throw ApiError when the backend refuses (REVISION_CONFLICT, INVALID_STATE, ...).
 //
@@ -139,6 +140,8 @@ export default function MapProvider({ children }) {
     await reload()
   }, [eventId, dirty, draftMap, savePins, reload])
 
+  const discardEdits = useCallback(() => setEdit(null), [])
+
   const discardDraft = useCallback(async () => {
     await mapApi.deleteFloorPlan(eventId, draftMap.floorPlanId, draftMap.revision)
     setEdit(null)
@@ -160,9 +163,10 @@ export default function MapProvider({ children }) {
       startFromPublished,
       savePins,
       publish,
+      discardEdits,
       discardDraft,
     }),
-    [image, pins, setPins, draft, published, dirty, loading, error, reload, uploadFloorPlan, startFromPublished, savePins, publish, discardDraft],
+    [image, pins, setPins, draft, published, dirty, loading, error, reload, uploadFloorPlan, startFromPublished, savePins, publish, discardEdits, discardDraft],
   )
   return <MapContext.Provider value={value}>{children}</MapContext.Provider>
 }

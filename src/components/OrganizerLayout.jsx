@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import boothLogo from '../assets/booth-logo.png'
 import { HOME_PATH } from '../constants/auth'
 import { EVENT_PROGRESS, EVENT_PROGRESS_LABEL } from '../constants/event'
+import { apiErrorMessage } from '../constants/errors'
 import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
+import { useNavGuardRef } from '../context/useLeaveGuard'
 import { formatDateRange } from '../utils/date'
 import { getEventProgress } from '../utils/event'
 import '../pages/organizer-map.css'
@@ -68,6 +70,48 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
   const [menuOpen, setMenuOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const userMenuRef = useRef(null)
+  const guardRef = useNavGuardRef()
+  const [pending, setPending] = useState(null) // the move waiting for the answer to "저장하시겠습니까?"
+  const [leaveBusy, setLeaveBusy] = useState(false)
+  const [leaveError, setLeaveError] = useState('')
+
+  // Runs `action` (a menu move or logout) - after asking, when the screen has unsaved changes.
+  const leave = (action) => {
+    if (guardRef.current?.dirty) {
+      setLeaveError('')
+      setPending(() => action)
+    } else {
+      action()
+    }
+  }
+  const closePending = () => {
+    if (!leaveBusy) setPending(null)
+  }
+  const saveAndLeave = async () => {
+    const guard = guardRef.current
+    const action = pending
+    setLeaveBusy(true)
+    setLeaveError('')
+    try {
+      const saved = await guard.save()
+      if (saved === false) {
+        setPending(null)
+        return
+      }
+      setPending(null)
+      action()
+    } catch (err) {
+      setLeaveError(apiErrorMessage(err))
+    } finally {
+      setLeaveBusy(false)
+    }
+  }
+  const discardAndLeave = () => {
+    const action = pending
+    guardRef.current?.discard?.()
+    setPending(null)
+    action()
+  }
 
   // Close the account menu on outside click or Escape.
   useEffect(() => {
@@ -82,11 +126,12 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
     }
   }, [menuOpen])
 
-  const handleLogout = async () => {
-    setLoggingOut(true)
-    await logout()
-    navigate('/login', { replace: true })
-  }
+  const handleLogout = () =>
+    leave(async () => {
+      setLoggingOut(true)
+      await logout()
+      navigate('/login', { replace: true })
+    })
   const progress = getEventProgress(event.startDate, event.endDate)
 
   return (
@@ -96,7 +141,7 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
           type="button"
           className="om-brand"
           aria-label="대시보드로 이동"
-          onClick={() => navigate(HOME_PATH)}
+          onClick={() => leave(() => navigate(HOME_PATH))}
         >
           <img src={boothLogo} alt="" className="om-brand-logo" />
           <span className="om-brand-name">부스럭</span>
@@ -116,7 +161,7 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
               key={item.key}
               type="button"
               className={`om-nav-item${item.key === active ? ' is-active' : ''}`}
-              onClick={() => item.to && navigate(item.to)}
+              onClick={() => item.to && item.key !== active && leave(() => navigate(item.to))}
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
@@ -176,6 +221,33 @@ export default function OrganizerLayout({ active, crumb, title, subtitle, action
 
         {children}
       </main>
+
+      {pending && (
+        <div className="om-confirm-overlay" onClick={closePending}>
+          <div
+            className="om-confirm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="om-leave-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="om-leave-title">저장하시겠습니까?</h2>
+            <p>저장하지 않은 변경 사항이 있어요. '아니요'를 누르면 변경한 내용은 저장되지 않아요.</p>
+            {leaveError && <p role="alert">{leaveError}</p>}
+            <div className="om-confirm-actions">
+              <button type="button" className="om-btn om-btn-outline" disabled={leaveBusy} onClick={closePending}>
+                취소
+              </button>
+              <button type="button" className="om-btn om-btn-outline" disabled={leaveBusy} onClick={discardAndLeave}>
+                아니요
+              </button>
+              <button type="button" className="om-btn om-btn-primary" disabled={leaveBusy} onClick={saveAndLeave}>
+                {leaveBusy ? '저장 중…' : '예'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

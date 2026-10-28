@@ -3,6 +3,7 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import OrganizerSignupPage from './pages/OrganizerSignupPage'
 import BoothSignupPage from './pages/BoothSignupPage'
+import StaffSignupPage from './pages/StaffSignupPage'
 import PlaceholderPage from './pages/PlaceholderPage'
 import OrganizerMapPage from './pages/OrganizerMapPage'
 import BoothManagePage from './pages/BoothManagePage'
@@ -12,6 +13,15 @@ import RecruitPage from './pages/RecruitPage'
 import NoticePage from './pages/NoticePage'
 import EventApplyPage from './pages/EventApplyPage'
 import AdminApplicationsPage from './pages/AdminApplicationsPage'
+import VisitorLayout from './pages/visitor/VisitorLayout'
+import VisitorHome from './pages/visitor/VisitorHome'
+import VisitorBooths from './pages/visitor/VisitorBooths'
+import VisitorBoothDetail from './pages/visitor/VisitorBoothDetail'
+import VisitorMap from './pages/visitor/VisitorMap'
+import VisitorInfo from './pages/visitor/VisitorInfo'
+import VisitorNotices from './pages/visitor/VisitorNotices'
+import VisitorNoticeDetail from './pages/visitor/VisitorNoticeDetail'
+import VisitorSponsors from './pages/visitor/VisitorSponsors'
 import AuthProvider from './context/AuthProvider'
 import RequireAuth from './components/RequireAuth'
 import RequireEvent from './components/RequireEvent'
@@ -49,7 +59,19 @@ function App() {
       <Route path="/signup" element={<LoginPage />} />
       <Route path="/signup/organizer" element={<OrganizerSignupPage />} />
       <Route path="/signup/booth" element={<BoothSignupPage />} />
+      <Route path="/signup/staff" element={<StaffSignupPage />} />
       <Route path="/home" element={<PlaceholderPage />} />
+      {/* Visitors: no login. The link / QR code on the organizer's dashboard points here. */}
+      <Route path="/e/:eventId" element={<VisitorLayout />}>
+        <Route index element={<VisitorHome />} />
+        <Route path="booths" element={<VisitorBooths />} />
+        <Route path="booths/:boothId" element={<VisitorBoothDetail />} />
+        <Route path="map" element={<VisitorMap />} />
+        <Route path="info" element={<VisitorInfo />} />
+        <Route path="info/notices" element={<VisitorNotices />} />
+        <Route path="info/notices/:noticeId" element={<VisitorNoticeDetail />} />
+        <Route path="info/sponsors" element={<VisitorSponsors />} />
+      </Route>
       {/* Administrators review the 행사 개설 신청 here (the page itself checks the admin role). */}
       <Route path="/admin/applications" element={<AdminApplicationsPage />} />
       {/* Everything under /organizer needs a logged-in user (RequireAuth sends others to /login)

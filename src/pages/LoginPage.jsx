@@ -4,7 +4,8 @@ import ScreenShell from '../components/ScreenShell'
 import AuthHeader from '../components/AuthHeader'
 import FormField from '../components/FormField'
 import SignupTypeModal from '../components/SignupTypeModal'
-import { AUTH_ERROR_MESSAGE, HOME_PATH, LOGIN_ID_PATTERN, authErrorMessage } from '../constants/auth'
+import { AUTH_ERROR_MESSAGE, LOGIN_ID_PATTERN, authErrorMessage } from '../constants/auth'
+import { homePathFor } from '../utils/role'
 import { useAuth } from '../context/useAuth'
 
 // Screens 2 & 3 — login screen, optionally with the "회원가입 유형 선택"
@@ -24,7 +25,7 @@ export default function LoginPage() {
 
   // Logged in (just now, or /login was opened again): go back to the page they asked for, or
   // to the dashboard. A successful login() fills `user`, which triggers this redirect.
-  if (ready && user) return <Navigate to={location.state?.from ?? HOME_PATH} replace />
+  if (ready && user) return <Navigate to={location.state?.from ?? homePathFor(user)} replace />
 
   const signedUp = location.state?.signedUp // set by the signup pages after success
 

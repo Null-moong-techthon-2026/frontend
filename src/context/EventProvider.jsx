@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as eventApi from '../api/eventApi'
+import { DUMMY_EVENT_PREFIX, getDummyEvent, updateDummyEvent } from '../api/eventApplicationApi'
 import { endOfLocalDate, startOfLocalDate } from '../utils/date'
 import { toEvent } from '../utils/event'
 import { EventContext } from './EventContext'
@@ -23,7 +24,10 @@ export default function EventProvider({ children }) {
   const [version, setVersion] = useState(0) // bump to load the events again
   const eventRef = useRef(null)
 
-  const reload = useCallback(() => setVersion((v) => v + 1), [])
+  const reload = useCallback(() => {
+    setLoaded((prev) => ({ ...prev, status: 'loading' }))
+    setVersion((v) => v + 1)
+  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -31,7 +35,9 @@ export default function EventProvider({ children }) {
     eventApi
       .listMyEvents('ORGANIZER', 0, 20)
       .then((page) => {
-        const first = page.content[0]
+        // The deployed backend cannot create events yet: without a real one, work with the dummy
+        // event made from the account's (auto-approved) event-opening application.
+        const first = page.content[0] ?? getDummyEvent(userId)
         if (alive) {
           setLoaded({ userId, status: first ? 'ready' : 'none', event: first ? toEvent(first) : null, error: null })
         }
@@ -61,12 +67,21 @@ export default function EventProvider({ children }) {
       if ('endDate' in fields) body.endsAt = endOfLocalDate(fields.endDate)
       if ('imageAssetId' in fields && fields.imageAssetId) body.posterAssetId = fields.imageAssetId
       if ('publicationStatus' in fields) body.publicationStatus = fields.publicationStatus
-      const next = toEvent(await eventApi.updateEvent(base.id, body))
+      const saved = base.id.startsWith(DUMMY_EVENT_PREFIX)
+        ? updateDummyEvent(userId, base.id, {
+            ...('name' in body ? { name: body.name } : {}),
+            ...('venue' in body ? { venue: body.venue } : {}),
+            ...('description' in body ? { description: body.description } : {}),
+            ...('startsAt' in body ? { startsAt: body.startsAt } : {}),
+            ...('endsAt' in body ? { endsAt: body.endsAt } : {}),
+          })
+        : await eventApi.updateEvent(base.id, body)
+      const next = toEvent(saved)
       eventRef.current = next
       setLoaded((prev) => ({ ...prev, event: next }))
       return next
     },
-    [],
+    [userId],
   )
 
   const value = useMemo(

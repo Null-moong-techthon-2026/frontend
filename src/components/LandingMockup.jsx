@@ -7,7 +7,7 @@ import { Icon } from './OrganizerLayout'
 
 const BASE_W = 700
 const BASE_H = 440
-const SLIDE_MS = 3000
+const SLIDE_MS = 2600
 
 const SLIDES = [
   {

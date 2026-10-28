@@ -1,22 +1,28 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+// The deployed backend (Swagger: /swagger-ui/index.html).
+const BACKEND = 'https://boothluck-3-26-67-198.sslip.io'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
-    // The browser only talks to this dev server, which forwards /api to the backend, so the session
-    // cookie stays first-party. Backend: `docker compose up -d --wait db` + `.\gradlew.bat bootRun`
-    // in backend-main.
+    // The browser only talks to this dev server, which forwards /api to the deployed backend, so
+    // the session cookie stays first-party. (The backend answers any cross-origin call with 403.)
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8080',
+        target: BACKEND,
+        changeOrigin: true,
         configure: (proxy) => {
-          // The backend's CORS filter only accepts the Origin http://127.0.0.1:5173 and answers
-          // anything else (e.g. http://localhost:5173) with 403 "Invalid CORS request". Through this
-          // proxy the call is same-origin for the browser, so drop the header: the page works from
-          // localhost and 127.0.0.1 alike.
+          // Drop the Origin header: the call is same-origin for the browser, and the backend's CORS
+          // filter would refuse the dev server's origin.
           proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'))
+          // The session cookie is marked Secure; the dev server speaks plain http, so unmark it.
+          proxy.on('proxyRes', (proxyRes) => {
+            const cookies = proxyRes.headers['set-cookie']
+            if (cookies) proxyRes.headers['set-cookie'] = cookies.map((c) => c.replace(/;\s*Secure/i, ''))
+          })
         },
       },
     },

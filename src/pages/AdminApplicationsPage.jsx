@@ -116,7 +116,7 @@ export default function AdminApplicationsPage() {
     }
     if (
       decision === 'APPROVED' &&
-      !window.confirm('승인하면 신청자의 단체와 행사가 바로 만들어져요. 승인할까요?')
+      !window.confirm('승인할까요? (임시 데이터라 행사는 실제로 만들어지지 않아요.)')
     ) {
       return
     }

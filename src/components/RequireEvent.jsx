@@ -7,8 +7,7 @@ import { apiErrorMessage } from '../constants/errors'
 import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
 import EventPendingPage from '../pages/EventPendingPage'
-import OperatorPreparingPage from '../pages/OperatorPreparingPage'
-import { isRememberedOperator } from '../utils/role'
+import { ROLE, getRole, homePathFor } from '../utils/role'
 import ScreenShell from './ScreenShell'
 
 // An account without an event is either a booth operator (their screens are not built yet) or an
@@ -21,7 +20,7 @@ import ScreenShell from './ScreenShell'
 // administrator approving an application opens the event for the applicant right away.)
 function NoEvent() {
   const { user } = useAuth()
-  const [kind, setKind] = useState(() => (isRememberedOperator(user.id) ? 'operator' : 'checking'))
+  const [kind, setKind] = useState(() => (getRole(user.id) === ROLE.ORGANIZER ? 'checking' : 'other-role'))
 
   useEffect(() => {
     if (kind !== 'checking') return
@@ -40,7 +39,8 @@ function NoEvent() {
   }, [kind])
 
   if (kind === 'checking') return null
-  if (kind === 'operator') return <OperatorPreparingPage />
+  // Operator and staff accounts have their own screens, not the organizer ones.
+  if (kind === 'operator' || kind === 'other-role') return <Navigate to={homePathFor(user)} replace />
   return kind === 'waiting' ? <EventPendingPage /> : <Navigate to="/apply" replace />
 }
 

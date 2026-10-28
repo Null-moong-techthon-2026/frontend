@@ -20,10 +20,17 @@ const TYPES = [
     to: '/signup/booth',
     icon: iconBoothTest,
   },
+  {
+    key: 'staff',
+    title: '스태프',
+    description: '행사 운영을 도우며 근무 일정을 확인해요.',
+    to: '/signup/staff',
+    icon: iconOrganizerTest,
+  },
 ]
 
 // Overlay shown on top of the login screen when the user taps 회원가입.
-// Lets them pick which of the two signup flows (screens 4 & 5) to enter.
+// Lets them pick which of the three signup flows to enter.
 export default function SignupTypeModal({ onClose }) {
   const navigate = useNavigate()
 

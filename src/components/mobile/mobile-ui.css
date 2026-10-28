@@ -1,0 +1,57 @@
+/* Pieces from MobileUi.jsx */
+.mb-pic {
+  overflow: hidden;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: #dfeae5;
+  aspect-ratio: 16 / 7;
+}
+.mb-pic img,
+.mb-tent {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mb-thumb {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #e6efeb;
+}
+.mb-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mb-thumb.is-empty {
+  display: grid;
+  place-items: center;
+  color: #6f9a8f;
+}
+.mb-thumb.is-lg {
+  width: 100%;
+  height: 108px;
+}
+
+.mb-thumb.is-hero {
+  width: 100%;
+  height: 168px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+}
+
+/* a bar that stays at the bottom of the scrolling content (the .mb-scroll padding is 20 / 16 / 24) */
+.mb-sticky {
+  position: sticky;
+  bottom: -24px;
+  z-index: 2;
+  margin: auto -16px -24px;
+  padding: 10px 16px;
+  background: #fff;
+  border-top: 1px solid #dfe9e5;
+}

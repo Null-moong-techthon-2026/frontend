@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import boothLogo from '../assets/booth-logo.png'
 import LandingMockup from '../components/LandingMockup'
-import { HOME_PATH } from '../constants/auth'
+import { homePathFor } from '../utils/role'
 import { useAuth } from '../context/useAuth'
 import './landing.css'
 
@@ -113,7 +113,7 @@ export default function DesktopLanding() {
               <button type="button" onClick={logout}>
                 로그아웃
               </button>
-              <button type="button" className="lp-login" onClick={() => navigate(HOME_PATH)}>
+              <button type="button" className="lp-login" onClick={() => navigate(homePathFor(user))}>
                 {user.nickname}님 대시보드
               </button>
             </>

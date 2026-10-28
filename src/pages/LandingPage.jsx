@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import ScreenShell from '../components/ScreenShell'
 import boothLogo from '../assets/booth-logo.png'
-import { HOME_PATH } from '../constants/auth'
+import { homePathFor } from '../utils/role'
 import { useAuth } from '../context/useAuth'
 import { useMediaQuery } from '../utils/useMediaQuery'
 import DesktopLanding from './DesktopLanding'
@@ -51,7 +51,7 @@ function PhoneLanding() {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => navigate(user ? HOME_PATH : '/home')}
+          onClick={() => navigate(user ? homePathFor(user) : '/home')}
         >
           시작하기
         </button>

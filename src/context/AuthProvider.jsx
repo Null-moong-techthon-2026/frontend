@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as authApi from '../api/authApi'
 import { setUnauthorizedHandler } from '../api/client'
+import { DEMO_USER, isDemo } from '../utils/demo'
 import { AuthContext } from './AuthContext'
 
 // Who is logged in. The session itself lives in the backend's cookie; this only mirrors it.
@@ -19,7 +20,8 @@ export default function AuthProvider({ children }) {
     authApi
       .getMe()
       .then((me) => alive && setUser(me))
-      .catch(() => {})
+      // Preview mode (?demo=1) shows the screens of an account without logging in.
+      .catch(() => alive && isDemo() && setUser(DEMO_USER))
       .finally(() => alive && setReady(true))
     return () => {
       alive = false

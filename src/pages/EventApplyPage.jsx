@@ -18,6 +18,7 @@ import {
 } from '../constants/eventApplication'
 import { apiErrorMessage } from '../constants/errors'
 import { useAuth } from '../context/useAuth'
+import { useEvent } from '../context/useEvent'
 import { normalizePhone, validateEmail, validatePhone } from '../utils/validators'
 import { useMyEventApplications } from '../utils/useMyEventApplications'
 import { useToast } from '../utils/useToast'
@@ -139,7 +140,7 @@ function StatusCard({ application, onNew }) {
         {application.status === APPLICATION_STATUS.PENDING &&
           ' 담당자가 신청 내용을 검토한 뒤 결과를 안내해 드려요.'}
         {application.status === APPLICATION_STATUS.APPROVED &&
-          ' 승인됐어요. 담당자가 행사를 열어 드리면 대시보드에서 바로 관리할 수 있어요.'}
+          ' 승인됐어요. 대시보드에서 바로 관리할 수 있어요.'}
         {rejected && ' 아래 사유를 확인하고 내용을 고쳐 다시 신청할 수 있어요.'}
       </p>
       {rejected && <p className="ap-reason">반려 사유: {application.rejectionReason || '(적어 두지 않았어요)'}</p>}
@@ -160,6 +161,7 @@ function StatusCard({ application, onNew }) {
 export default function EventApplyPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { reload: reloadEvent } = useEvent()
   const { toast, notify } = useToast()
   const { applications, loading, error: loadError, reload } = useMyEventApplications(user.id)
   const [justSent, setJustSent] = useState(null) // the application just submitted, until the list is reloaded
@@ -205,7 +207,9 @@ export default function EventApplyPage() {
       setJustSent(await submitEventApplication(clean))
       setReapply(false)
       reload()
-      window.scrollTo({ top: 0 })
+      // Dummy: the application is approved at once, so go straight to the dashboard.
+      reloadEvent()
+      navigate(HOME_PATH)
     } catch (err) {
       notify(apiErrorMessage(err), 'error')
     } finally {

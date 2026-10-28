@@ -1,0 +1,500 @@
+/* Visitor screens (/e/:eventId/...). Class prefix: vs- (shared pieces live in components/mobile) */
+.vs-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.vs-title .mb-title {
+  min-width: 0;
+}
+.vs-meta {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--mb-soft);
+}
+.vs-meta li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vs-ad {
+  display: grid;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+.vs-ad small {
+  color: var(--mb-soft);
+  font-size: 11px;
+}
+.vs-ad strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+.vs-ad .mb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vs-notice .mb-card-row {
+  margin-bottom: 8px;
+}
+.vs-notice .mb-card-row h3 {
+  margin: 0;
+  flex: 1;
+}
+.vs-notice-title {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: var(--mb-ink);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.vs-section {
+  margin-top: 6px;
+}
+.vs-section .mb-h3 {
+  margin: 16px 0 10px;
+}
+
+.vs-picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.vs-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 10px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.vs-pick strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+.vs-pick small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+
+.vs-partners {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.vs-partner {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 12px 6px;
+}
+.vs-partner small {
+  font-size: 12px;
+  font-weight: 700;
+}
+.vs-avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #eef4f1;
+  color: var(--mb-primary);
+  font-size: 18px;
+  font-weight: 900;
+}
+.vs-avatar.is-lg {
+  width: 64px;
+  height: 64px;
+  font-size: 26px;
+}
+
+/* ---------- booth list / detail ---------- */
+.vs-filters {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.vs-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.vs-count {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.vs-booth {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.vs-booth-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vs-booth-body small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+.vs-booth-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vs-booth-head strong {
+  font-size: 15px;
+  font-weight: 900;
+}
+.vs-intro {
+  margin: 12px 0 8px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.vs-hours {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--mb-soft);
+}
+.vs-items {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vs-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.vs-items span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vs-items small {
+  color: var(--mb-soft);
+  font-size: 12px;
+}
+.vs-sns {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: inherit;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+/* ---------- map ---------- */
+.vs-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.vs-types button {
+  padding: 6px 12px;
+  border: 1px solid var(--mb-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--mb-soft);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.vs-types button.is-on {
+  background: #eef4f1;
+  border-color: var(--mb-primary);
+  color: var(--mb-primary-dark);
+}
+.vs-map {
+  position: relative;
+  overflow: auto;
+  border: 1px solid var(--mb-border);
+  border-radius: 14px;
+  background: #e9efec;
+}
+.vs-map.is-zoomed {
+  max-height: 460px;
+}
+.vs-map-inner {
+  position: relative;
+  min-width: 100%;
+  line-height: 0;
+}
+.vs-map-inner img {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+.vs-pin {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  transform: translate(-50%, -88%);
+  line-height: 1;
+  cursor: pointer;
+}
+.vs-pin svg {
+  fill: currentColor;
+  fill-rule: evenodd;
+  stroke: #fff;
+  stroke-width: 1.4;
+}
+.vs-pin span {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #4b5d57;
+  white-space: nowrap;
+}
+.vs-pin.is-open {
+  color: #a94a35;
+}
+.vs-pin.is-off {
+  color: #9aa7a2;
+}
+.vs-pin.is-facility {
+  color: #3d7b70;
+}
+.vs-pin.is-selected::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(217, 245, 138, 0.9);
+  z-index: -1;
+}
+.vs-map-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 0;
+}
+.vs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: var(--mb-soft);
+}
+.vs-legend li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vs-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.vs-legend i.is-open {
+  background: #a94a35;
+}
+.vs-legend i.is-off {
+  background: #9aa7a2;
+}
+.vs-legend i.is-facility {
+  background: #3d7b70;
+}
+.vs-zoom {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.vs-zoom button {
+  width: 44px;
+  height: 36px;
+  border: 1px solid var(--mb-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--mb-ink);
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.vs-zoom button.is-wide {
+  width: auto;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.vs-zoom button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.vs-mini {
+  display: grid;
+  gap: 12px;
+}
+.vs-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------- info / notices / sponsors ---------- */
+.vs-rows {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.vs-rows li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vs-body {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+.vs-stack {
+  display: grid;
+  gap: 8px;
+}
+.vs-stack .mb-btn {
+  text-decoration: none;
+}
+.vs-phone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--mb-ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.vs-notice-row {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.vs-notice-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.vs-notice-top small {
+  color: var(--mb-soft);
+  font-size: 11px;
+}
+.vs-notice-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vs-notice-line strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+.vs-notice-h1 {
+  margin: 10px 0 6px;
+  line-height: 1.3;
+}
+.vs-notice-body {
+  margin-top: 14px;
+}
+.vs-notice-body p {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+.vs-notice-body p:last-child {
+  margin-bottom: 0;
+}
+.vs-notice-img {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  border-radius: 14px;
+}
+.vs-attach {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.vs-attach span {
+  flex: 1;
+}
+.vs-sponsor {
+  display: grid;
+  gap: 12px;
+}
+.vs-sponsor-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.vs-sponsor-head > span:last-child {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.vs-sponsor .mb-muted {
+  margin: 0;
+}
+.vs-sponsor .mb-btn {
+  text-decoration: none;
+}

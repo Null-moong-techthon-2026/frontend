@@ -9,8 +9,8 @@
 //   GET  /api/me/applications, /api/me/booths           my applications / my booths
 //   GET/PATCH /api/events/:id/booths/:boothId[/...]     my booth: detail, info, operation status, menu items
 //   GET  /api/events/:id/announcements?view=READ        notices readable by operators
-// Not in the backend yet (docs/BACKEND_REQUESTS.md): booth hours/photo/SNS, extra application
-// questions and documents, payments, event contact phone. In ?demo mode everything comes from
+// Not in the backend (docs/BACKEND_REQUESTS.md): booth hours / SNS, extra application questions and
+// documents, payments, the event's contact phone. In ?demo mode everything comes from
 // src/dummy/demoData.js and changes are kept in memory.
 //
 // View models:
@@ -20,7 +20,7 @@
 //                 rejectionReason, boothId, boothCode }
 //   myBooth     { id, code, name, categoryCode, operationStatus, visibilityStatus, revision,
 //                 eventId, eventName, venue, startDate, endDate }
-//   boothDetail { ...booth fields, intro, items:[{id,name,priceKrw,stockStatus,revision}], placement, hours }
+//   boothDetail { ...booth fields, intro, items:[{id,name,priceKrw,stockStatus,revision}], placement, photos:[{id,url}] }
 
 import {
   DEMO_BOOTHS,
@@ -35,7 +35,7 @@ import {
 import { demoDelay, isDemo, isDemoNewcomer } from '../utils/demo'
 import { toEvent } from '../utils/event'
 import * as boothApi from './boothApi'
-import { get, patch, post, query } from './client'
+import { get, patch, post, put, query } from './client'
 
 const eventFrom = (raw) => ({
   ...toEvent(raw),
@@ -232,7 +232,7 @@ const demoState = () =>
         heightPx: DEMO_MAP_IMAGE.heightPx,
         label: '중앙광장 먹거리 구역',
       },
-      hours: source.hours,
+      photos: [],
     }
   })())
 
@@ -246,23 +246,12 @@ export async function listMyBoothViews() {
   return page.content.map(myBoothView)
 }
 
-// Hours the operator sets for the booth: the backend has no field for them yet, so they are kept
-// in this browser.
-const HOURS_KEY = 'boothluck.dummy.boothHours'
-export function getBoothHours(boothId) {
-  try {
-    return JSON.parse(localStorage.getItem(HOURS_KEY) ?? '{}')[boothId] ?? null
-  } catch {
-    return null
-  }
-}
-export function saveBoothHours(boothId, hours) {
-  try {
-    localStorage.setItem(HOURS_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(HOURS_KEY) ?? '{}'), [boothId]: hours }))
-  } catch {
-    // keep going: the screen shows the new value until it is closed
-  }
-}
+// The booth's photos (first = the cover). The field names are not typed in the OpenAPI document,
+// so a few likely spellings are accepted here - the one place to adjust.
+const photosOf = (raw) =>
+  (raw.photos ?? raw.mediaAssets ?? [])
+    .map((p) => ({ id: p.mediaAssetId ?? p.assetId ?? p.id, url: p.readUrl ?? p.url ?? p.imageUrl ?? null }))
+    .filter((p) => p.id)
 
 const detailView = (raw, eventId) => ({
   id: raw.eventBoothId,
@@ -292,7 +281,7 @@ const detailView = (raw, eventId) => ({
         label: raw.mapPlacement.label ?? '',
       }
     : null,
-  hours: getBoothHours(raw.eventBoothId),
+  photos: photosOf(raw),
 })
 
 export async function getMyBoothDetail(booth) {
@@ -338,6 +327,31 @@ export async function changeItem(booth, item, fields) {
     return reread(booth)
   }
   await boothApi.patchItem(booth.eventId, booth.id, item.id, { revision: item.revision, ...fields })
+  return reread(booth)
+}
+
+// Photos: upload one file (-> its media asset id), then save the whole ordered list of ids (first =
+// cover, at most 10). Both resolve with the fresh booth detail.
+export async function addBoothPhoto(booth, file, currentIds) {
+  if (isDemo()) {
+    demoState().photos = [...demoState().photos, { id: `demo-photo-${Date.now()}`, url: URL.createObjectURL(file) }]
+    return reread(booth)
+  }
+  const form = new FormData()
+  form.append('file', file)
+  const asset = await post(`/api/events/${booth.eventId}/booths/${booth.id}/media-assets`, form)
+  const id = asset.mediaAssetId ?? asset.id
+  await put(`/api/events/${booth.eventId}/booths/${booth.id}/photos`, { revision: booth.revision, mediaAssetIds: [...currentIds, id] })
+  return reread(booth)
+}
+
+export async function saveBoothPhotos(booth, ids) {
+  if (isDemo()) {
+    const state = demoState()
+    state.photos = ids.map((id) => state.photos.find((p) => p.id === id)).filter(Boolean)
+    return reread(booth)
+  }
+  await put(`/api/events/${booth.eventId}/booths/${booth.id}/photos`, { revision: booth.revision, mediaAssetIds: ids })
   return reread(booth)
 }
 

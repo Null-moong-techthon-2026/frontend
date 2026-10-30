@@ -9,17 +9,17 @@ Figma 와이어프레임(주최자 웹 + 부스 운영자/스태프/방문객 �
 
 ## 확정된 결정 (사용자 지시)
 - 백엔드: 팀원이 배포한 서버(`vite.config.js`의 BACKEND). 로컬 backend-main은 삭제됨.
-- 모바일 화면(운영자·스태프·방문객)은 모바일 규격으로 만든다. 데스크톱에서는 가운데 정렬된 폭 약 430px 카드.
-- 회원가입 유형이 3개로 늘어남: 주최자 / 부스 운영자 / **스태프**.
-- 행사 개설 신청: 제출하면 즉시 승인되는 더미(브라우저 저장) → 대시보드로 이동. 실제 신청·승인은 나중에 사용자가 추가. (`src/api/eventApplicationApi.js`)
-- 샘플 데이터: **`?demo=1` 미리보기 모드**. 평소에는 실제 서버 데이터만. 서버에 API가 아예 없는 것(스태프·통계·후원사·출퇴근)은 더미 데이터로 만든다.
-- 와이어프레임의 부스 마크 그림 등은 주최자가 올린 이미지(없으면 기본 그림)로 대체한다.
+- 모바일 화면(운영자·스태프·방문객)은 모바일 규격. 데스크톱에서는 가운데 정렬된 폭 약 430px 카드.
+- 가입 유형 3개: 주최자 / 부스 운영자 / 스태프. 일반 사용자(방문객)는 계정이 필요 없음.
+- 샘플 데이터는 `?demo=1`(참여한 계정) / `?demo=2`(새 계정) 미리보기 모드에서만. 평소에는 서버 데이터만.
+- 2026-10-31: 서버에 행사 개설·역할·스태프·부스 사진 API가 반영됨 → 프론트를 연결하고 임시 코드(행사 신청 더미, 승인 대기·관리자 화면, 가입 역할 로컬 기억, 스태프 로컬 저장)를 없앴다.
+- 와이어프레임의 부스 마크 그림 등은 주최자가 올린 이미지(없으면 기본 그림)로 대체.
 - 애매하면 사용자에게 질문한다.
 
 ## 구조 규칙
 - 모바일 공통 틀: `src/components/mobile/` (MobileShell, 상단바, 하단 탭).
-- 역할: `src/utils/role.js` (ORGANIZER / OPERATOR / STAFF). 서버가 역할을 저장하지 않아 가입 시 브라우저에 기억 → 백엔드 요청 항목.
-- 데이터 접근: `src/api/*Api.js`. 서버 API가 있으면 실제 호출, 없으면 더미(`src/dummy/`)로 같은 모양을 돌려준다. 교체는 함수 본문만.
+- 역할: `/api/me`의 `role`(ORGANIZER / OPERATOR / STAFF) → `src/utils/role.js`의 `homePathFor`.
+- 데이터 접근: `src/api/*Api.js` (실제 호출 + `?demo` 분기). 미리보기 샘플은 `src/dummy/`.
 - 라우트: 방문객 `/e/:eventId/...`, 운영자 `/operator/...`, 스태프 `/staff/...`, 주최자 `/organizer/...`, 초대 `/invite/:code`(운영자), `/invite/staff/:code`(스태프).
 
 ## 단계별 진행 (✅ 완료 / 🔄 진행 중 / ⬜ 아직)
@@ -34,37 +34,38 @@ Figma 와이어프레임(주최자 웹 + 부스 운영자/스태프/방문객 �
 | 6 | 마무리: 백엔드 요청 문서 정리, 린트·빌드, 이 문서 갱신 | ✅ |
 
 ## 어디서부터 이어서?
-**0~6단계 모두 끝났습니다** (로컬 커밋만, 푸시 안 함). 남은 일은 "다듬기"와 "백엔드가 생기면 연결"뿐입니다.
+**0~6단계와 서버 연결까지 끝났습니다.** 남은 일은 서버 응답 모양 확인과 다듬기입니다.
 
 ### 바로 할 수 있는 다음 작업
 1. 사용자 확인 후 푸시 요청이 오면 `git push origin main` (프론트 저장소 frontend).
 2. 사용자가 와이어프레임과 다른 점을 지적하면 해당 화면만 수정 (화면 위치는 아래 표).
-3. 백엔드에 API가 생기면 `docs/BACKEND_REQUESTS.md` 항목 순서대로 연결 — 각 `src/api/*Api.js`/`src/dummy/*.js`의 함수 본문만 교체 (모양은 그대로).
+3. 서버 응답 모양을 확인해 normalizer를 맞춘다 (`docs/BACKEND_REQUESTS.md` ②-1). 서버에 없던 기능이 생기면 ③ 항목을 연결한다.
 
 ### 화면 위치
 | 앱 | 주소 | 파일 |
 |---|---|---|
 | 방문객 | `/e/:eventId/...` | `src/pages/visitor/`, 데이터 `src/api/visitorApi.js` |
 | 부스 운영자 | `/operator/...`, `/invite/:code` | `src/pages/operator/`, `src/api/operatorApi.js` |
-| 스태프 | `/staff/...`, `/invite/staff/:token` | `src/pages/staff/`, `src/api/staffApi.js`, `src/dummy/staffStore.js` |
+| 스태프 | `/staff/...`, `/invite/staff/:token` | `src/pages/staff/`, `src/api/staffApi.js` (샘플 `src/dummy/staffStore.js`) |
 | 주최자 스태프·통계 | `/organizer/staff`, `/organizer/stats` | `src/pages/OrganizerStaffPage.jsx`, `OrganizerStatsPage.jsx`, `src/dummy/*` |
 | 공통 모바일 틀 | | `src/components/mobile/` |
 
 ### 사용자 입장 점검에서 추가한 것 (와이어프레임엔 없지만 기능상 필수)
-- 다른 브라우저에서 로그인한 운영자가 무한 이동(리다이렉트 루프)에 빠지던 버그 수정 (`RequireEvent`).
 - 초대 링크로 들어온 사람이 가입·로그인을 거쳐도 원래 초대 화면으로 돌아오게 (`utils/afterLogin.js`), 로그인 화면에 초대 안내 문구.
-- 역할을 모르는 계정이 행사 개설 신청서로 오면 "부스 운영자로 계속 / 스태프로 계속" 선택 (`EventApplyPage`).
-- 주최자 대시보드: 진짜 QR 코드 생성(`qrcode` 패키지) + QR 복사(안 되면 이미지 저장) + 행사가 공개 전이면 방문객 링크가 안 열린다는 안내.
+- 주최자 대시보드: 진짜 QR 코드 생성(`qrcode`) + QR 복사(안 되면 이미지 저장) + 행사가 공개 전이면 방문객 링크가 안 열린다는 안내.
 - 로그인 화면의 "아이디 찾기/비밀번호 찾기"는 눌렀을 때 "준비 중" 안내.
-- 스태프 임시 데이터: 실제 사용에서는 빈 상태로 시작하고(샘플 인원은 `?demo=1`에서만), 주최자의 실제 행사 이름·기간으로 근무표 날짜가 만들어짐. 키가 둘로 나뉨(`boothluck.dummy.staff`, `…staff.demo`).
+- 행사 개설 화면(`/apply`): 단체 이름·유형, 행사 이름·기간·장소만 받는다 (서버가 저장하는 값만).
+
+### 서버 연결 (2026-10-31)
+- 행사 개설 `openEvent`, 역할 `role`, 스태프 전체 `src/api/staffApi.js`, 부스 사진 `operatorApi.js`.
+- **응답 필드 이름은 Swagger에 타입이 없어 가정**했고, 라이브 서버로 확인하지 못했다(공유 서버에 시험 데이터를 만드는 것이 막혀 있었음). 확인할 곳: `staffApi.js`의 normalizer(`memberView`, `shiftView`, `mineView`, `recordView`, `resolveStaffInvite`, `listMyStaffMemberships`), `operatorApi.js`의 `photosOf`, `visitorApi.js`의 `photoUrls`. 목록은 `docs/BACKEND_REQUESTS.md` ②-1.
 
 ### 알려진 한계 / 결정해 둔 것 (사용자에게 확인받을 것)
-- 부스 사진·운영 시간·SNS·후원사·광고·결제 내역·신청서 추가 항목은 서버에 없어 자리만 있거나 샘플(`?demo=1`)로만 보임.
+- 서버에 없어서 화면이 비거나 샘플뿐인 것: 부스 운영 시간·SNS, 후원사·광고, 통계, 결제 내역, 계정 정보 수정, 행사 문의처·운영 시간·오시는 길 (`docs/BACKEND_REQUESTS.md` ③).
 - 재고 단계는 서버 값(충분·부족·품절·무제한)만 씀. 와이어프레임의 "중간"은 없음.
-- 스태프 가입은 서버에 STAFF가 없어서 OPERATOR로 가입시킨 뒤 이 브라우저에 STAFF로 기억함 → 다른 브라우저에서는 역할을 모름.
 - 가입 유형 선택 모달의 스태프 아이콘은 주최자 아이콘과 같은 임시 그림.
 - 정산 관리는 "준비중" 그대로. 알림(종 아이콘)은 공지로 이동만 함.
-- 행사 개설은 서버에 만들 수 없어 임시 행사(브라우저 저장)로 대시보드를 봄 → BACKEND_REQUESTS 1번.
+- 스태프 실시간 현황은 명단에서 계산하고 30초마다 다시 불러옴(`staff-live` API는 쓰지 않음).
 
 ### 확인 방법
 `npm run dev -- --port 5199 --host 127.0.0.1` 후 주소 끝에 `?demo=1`(참여한 계정) / `?demo=2`(새 계정) / `?demo=0`(끄기).

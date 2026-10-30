@@ -5,7 +5,7 @@
 export const ONBOARDING_TYPE = {
   ORGANIZER: 'ORGANIZER', // 축제 주최자
   OPERATOR: 'OPERATOR', // 부스 운영자
-  STAFF: 'STAFF', // 스태프 - the backend only knows the two above (see SignupForm / docs/BACKEND_REQUESTS.md)
+  STAFF: 'STAFF', // 스태프
 }
 
 export const LOGIN_ID_PATTERN = /^[a-z0-9_]{4,30}$/

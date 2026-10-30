@@ -1,20 +1,6 @@
-// 스태프 (staff) data. There is NO backend for it yet (docs/BACKEND_REQUESTS.md), so this small
-// store keeps everything in this browser: the organizer's 스태프 screens (명단 / 근무표 / 실시간
-// 현황) and the staff app (일정, 프로필, 근무 기록) read and change the same data.
-// When the backend gets staff APIs, replace the actions below with calls; the shapes stay.
-//
-//   member { id, name, role, dutyId, phone, email, affiliation, status, memo, worked }
-//          role   STAFF 스태프 | ADMIN 관리자(주최측) | LABOR 근로 | VOLUNTEER 봉사
-//          status PENDING 승인 대기 | WORKING 근무 중 | WAITING 대기 중 | BREAK 휴식 중 | ABSENT 미출근 | REJECTED 거부
-//   duty   { id, name, zone, start, end }              'HH:mm' times
-//   shift  { id, date, dutyId, start, end, memberIds, roles }
-//   event      the organizer's event this data belongs to (null in preview mode: the sample event)
-//   accounts   { [accountId]: memberId }        which member a logged-in staff account is
-//   attendance { [memberId]: [{ date, in, out }] }   출근 / 퇴근 times ('HH:mm'; out is null until 퇴근)
-
-import { useSyncExternalStore } from 'react'
-import { isDemo } from '../utils/demo'
-import { DEMO_EVENT } from './demoData'
+// 스태프 sample data for the ?demo preview mode (see utils/demo.js) - and the role / status words
+// both the real screens and the preview use. Real use goes through api/staffApi.js to the backend;
+// this module is only touched when the preview flag is on. State lives in memory (a reload resets it).
 
 export const STAFF_ROLE = { STAFF: 'STAFF', ADMIN: 'ADMIN', LABOR: 'LABOR', VOLUNTEER: 'VOLUNTEER' }
 export const STAFF_ROLE_LABEL = { STAFF: '스태프', ADMIN: '관리자', LABOR: '근로', VOLUNTEER: '봉사' }
@@ -36,11 +22,8 @@ export const STAFF_STATUS_LABEL = {
   REJECTED: '거부',
 }
 
-export const STAFF_INVITE = { code: 'BL26-STF7', url: 'boothluck.kr/invite/staff/7Qm4xN', token: '7Qm4xN' }
-
-// Real use starts empty and keeps its own data; ?demo=1 preview mode has sample people and its own key.
-const KEY = 'boothluck.dummy.staff'
-const storageKey = () => (isDemo() ? `${KEY}.demo` : KEY)
+export const STAFF_INVITE = { code: 'BL26-STF7', token: '7Qm4xN' }
+export const SHIFT_DAYS = ['2026-11-02', '2026-11-03', '2026-11-04']
 
 const DUTIES = [
   { id: 'duty-info', name: '행사 안내', zone: '운영본부', start: '14:00', end: '16:00' },
@@ -61,11 +44,11 @@ const m = (id, name, role, dutyId, phone, status, extra = {}) => ({
   affiliation: '인하대학교',
   status,
   memo: '',
-  worked: false,
+  revision: 0,
   ...extra,
 })
 
-// The people named in the wireframes first, then more of them so the lists have pages.
+// The people named in the wireframes first, then more so the lists have pages.
 const NAMED = [
   m('s01', '김민지', 'STAFF', 'duty-info', '010-0000-1001', 'PENDING', { email: 'minji@example.com' }),
   m('s02', '박서준', 'ADMIN', 'duty-stage', '010-0000-1002', 'WORKING'),
@@ -99,10 +82,15 @@ const EXTRA = Array.from({ length: 13 }, (_, i) => {
   return m(`s${n}`, `${SURNAMES[i % SURNAMES.length]}${GIVEN[i]}`, role, i < 5 ? null : DUTIES[i % DUTIES.length].id, `010-0000-10${String(n).padStart(2, '0')}`, status)
 })
 
-const SHIFT_DAYS = ['2026-11-02', '2026-11-03', '2026-11-04']
+// The preview's own staff account: an approved staff member with two shifts like the wireframe.
+const DEMO_ME = m('demo-staff', '김민서', 'STAFF', 'duty-info', '010-0000-1001', 'WAITING', { email: 'booth@example.com' })
 
-const seed = () => {
-  if (!isDemo()) return { members: [], duties: [], shifts: [], accounts: {}, attendance: {}, event: null }
+let state = null
+let me = null // the preview account's own member (null = a newcomer who has not joined)
+let attendance = []
+
+function init() {
+  if (state) return state
   const members = [...NAMED, ...EXTRA]
   const shifts = SHIFT_DAYS.flatMap((date, day) =>
     DUTIES.map((d) => ({
@@ -113,279 +101,150 @@ const seed = () => {
       end: d.end,
       memberIds: members.filter((x) => x.dutyId === d.id && x.status !== 'PENDING').map((x) => x.id),
       roles: ['STAFF', 'LABOR', 'VOLUNTEER'],
+      revision: 0,
     })),
   )
-  return { members, duties: DUTIES, shifts, accounts: {}, attendance: {}, event: null }
+  shifts.forEach((s) => {
+    if (s.dutyId === 'duty-info' && s.date === SHIFT_DAYS[0]) s.memberIds.push('demo-staff')
+  })
+  // 11:00 - 13:00 입구 안내 (with 이수현 and 최지우), then 14:00 - 16:00 행사 안내 like the wireframe.
+  shifts.push({ id: 'shift-demo-gate', date: SHIFT_DAYS[0], dutyId: 'duty-gate', start: '11:00', end: '13:00', memberIds: ['demo-staff', 's03', 's04'], roles: ['STAFF', 'LABOR', 'VOLUNTEER'], revision: 0 })
+  return (state = { members: [...members, DEMO_ME], duties: DUTIES.map((d) => ({ ...d })), shifts })
 }
 
-let state = null
-let stateKey = null
-const listeners = new Set()
+export const readStaffData = () => init()
 
-function load() {
-  const key = storageKey()
-  if (state && stateKey === key) return state
-  stateKey = key
-  try {
-    const stored = JSON.parse(localStorage.getItem(key))
-    if (stored?.members && stored?.duties && stored?.shifts) {
-      return (state = { accounts: {}, attendance: {}, event: null, ...stored })
-    }
-  } catch {
-    // fall through to the seed
-  }
-  return (state = seed())
+// ---- organizer actions (preview) ----
+
+export const updateMember = (id, fields) => {
+  const s = init()
+  s.members = s.members.map((x) => (x.id === id ? { ...x, ...fields } : x))
 }
-
-function commit(next) {
-  state = next
-  try {
-    localStorage.setItem(storageKey(), JSON.stringify(next))
-  } catch {
-    // keep it in memory only
-  }
-  listeners.forEach((l) => l())
-}
-
-const subscribe = (listener) => {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-// { members, duties, shifts } - a new object after every change.
-export const useStaffData = () => useSyncExternalStore(subscribe, load, load)
-
-export const resetStaffData = () => commit(seed())
-
-// For code outside React (the api module).
-export const readStaffData = () => load()
-
-// ---- actions ----
-
-export const updateMember = (id, fields) =>
-  commit({ ...load(), members: load().members.map((x) => (x.id === id ? { ...x, ...fields } : x)) })
-
 export const approveMember = (id) => updateMember(id, { status: STAFF_STATUS.WAITING })
 export const rejectMember = (id) => updateMember(id, { status: STAFF_STATUS.REJECTED })
 
-// Puts a person on a duty (and into that duty's shift of the day).
 export function assignDuty(memberId, dutyId) {
-  const current = load()
-  const shifts = current.shifts.map((s) => {
-    const without = s.memberIds.filter((x) => x !== memberId)
-    return s.dutyId === dutyId && s.date === staffDays(current)[0] ? { ...s, memberIds: [...without, memberId] } : { ...s, memberIds: without }
-  })
-  commit({
-    ...current,
-    shifts,
-    members: current.members.map((x) =>
-      x.id === memberId ? { ...x, dutyId, status: x.status === STAFF_STATUS.PENDING ? x.status : STAFF_STATUS.WORKING } : x,
-    ),
-  })
+  const s = init()
+  s.members = s.members.map((x) =>
+    x.id === memberId ? { ...x, dutyId, status: x.status === STAFF_STATUS.PENDING ? x.status : STAFF_STATUS.WORKING } : x,
+  )
 }
 
 export function addDuty({ name, zone, start, end }) {
-  const current = load()
+  const s = init()
   const duty = { id: `duty-${Date.now()}`, name, zone, start, end }
-  commit({ ...current, duties: [...current.duties, duty] })
+  s.duties = [...s.duties, duty]
   return duty
 }
 
 export function addShift({ date, dutyId, start, end, roles }) {
-  const current = load()
-  const shift = { id: `shift-${Date.now()}`, date, dutyId, start, end, memberIds: [], roles }
-  commit({ ...current, shifts: [...current.shifts, shift] })
+  const s = init()
+  const shift = { id: `shift-${Date.now()}`, date, dutyId, start, end, memberIds: [], roles, revision: 0 }
+  s.shifts = [...s.shifts, shift]
   return shift
 }
 
 export function setShiftMembers(shiftId, memberIds) {
-  const current = load()
-  const shift = current.shifts.find((s) => s.id === shiftId)
-  commit({
-    ...current,
-    shifts: current.shifts.map((s) => (s.id === shiftId ? { ...s, memberIds } : s)),
-    members: current.members.map((x) =>
-      memberIds.includes(x.id) ? { ...x, dutyId: shift.dutyId } : x,
-    ),
-  })
+  const s = init()
+  const shift = s.shifts.find((x) => x.id === shiftId)
+  s.shifts = s.shifts.map((x) => (x.id === shiftId ? { ...x, memberIds } : x))
+  s.members = s.members.map((x) => (memberIds.includes(x.id) ? { ...x, dutyId: shift.dutyId } : x))
 }
 
-// ---- reading helpers ----
+// ---- the preview's staff account ----
 
-export const dutyOf = (data, member) => data.duties.find((d) => d.id === member.dutyId) ?? null
-export const membersOfDuty = (data, dutyId) => data.members.filter((x) => x.dutyId === dutyId && x.status !== STAFF_STATUS.PENDING && x.status !== STAFF_STATUS.REJECTED)
-
-export function countBy(members, key) {
-  const counts = {}
-  for (const x of members) counts[x[key]] = (counts[x[key]] ?? 0) + 1
-  return counts
-}
-
-
-// ---- the staff app (a logged-in staff account is one member) ----
-
-export const memberOfAccount = (data, accountId) => {
-  const id = data.accounts[accountId]
-  return id ? (data.members.find((x) => x.id === id) ?? null) : null
-}
-
-// A staff account asks to join with an invitation code: becomes a member waiting for approval.
-export function joinStaff(account, role) {
-  const current = load()
-  const id = `acc-${account.id}`
-  const member = {
-    id,
-    name: account.nickname,
-    role,
-    dutyId: null,
-    phone: account.phoneNumber ?? '',
-    email: account.email ?? '',
-    affiliation: '',
-    status: STAFF_STATUS.PENDING,
-    memo: '',
-    worked: false,
+// ?demo=1 is an approved staff member; ?demo=2 a newcomer who joins with the code.
+export function setDemoNewcomer(isNewcomer) {
+  if (isNewcomer) {
+    if (me?.id === 'demo-staff') me = null
+  } else if (!me) {
+    me = DEMO_ME
   }
-  commit({
-    ...current,
-    members: [member, ...current.members.filter((x) => x.id !== id)],
-    accounts: { ...current.accounts, [account.id]: id },
-  })
-  return member
 }
 
-// Preview mode: the demo account is an approved staff member with the two shifts of the wireframe.
-export function ensureDemoStaff(account) {
-  const current = load()
-  if (current.accounts[account.id]) return
-  const id = 'demo-staff'
-  const member = {
-    id,
-    name: account.nickname,
-    role: STAFF_ROLE.STAFF,
-    dutyId: 'duty-info',
-    phone: '010-0000-1001',
-    email: account.email,
-    affiliation: '인하대학교',
-    status: STAFF_STATUS.WAITING,
-    memo: '',
-    worked: false,
-  }
-  // 11:00 - 13:00 입구 안내 (with 이수현 and 최지우), then 14:00 - 16:00 행사 안내 like the wireframe.
-  const addTo = (shift) => (shift.date === SHIFT_DAYS[0] && shift.dutyId === 'duty-info' ? { ...shift, memberIds: [...shift.memberIds, id] } : shift)
-  const morning = { id: 'shift-demo-gate', date: SHIFT_DAYS[0], dutyId: 'duty-gate', start: '11:00', end: '13:00', memberIds: [id, 's03', 's04'], roles: ['STAFF', 'LABOR', 'VOLUNTEER'] }
-  commit({
-    ...current,
-    members: [...current.members, member],
-    shifts: [...current.shifts.map(addTo), morning],
-    accounts: { ...current.accounts, [account.id]: id },
-  })
+export function demoJoin(role, affiliation) {
+  const s = init()
+  me = m('demo-new', '김민서', role, null, '010-0000-0000', 'PENDING', { email: 'booth@example.com', affiliation: affiliation ?? '' })
+  s.members = [me, ...s.members.filter((x) => x.id !== 'demo-new')]
 }
 
-export function updateProfile(memberId, { name, phone, email, affiliation }) {
-  updateMember(memberId, { name, phone, email, affiliation })
+export function demoMemberships() {
+  const s = init()
+  const mine = me ? s.members.find((x) => x.id === me.id) : null
+  if (!mine) return []
+  const duty = s.duties.find((d) => d.id === mine.dutyId)
+  return [
+    {
+      eventId: 'demo-event',
+      memberId: mine.id,
+      role: mine.role,
+      status: mine.status,
+      eventName: '비룡제 2026',
+      startDate: SHIFT_DAYS[0],
+      endDate: SHIFT_DAYS[SHIFT_DAYS.length - 1],
+      venue: '인하대학교 대운동장',
+      dutyName: duty?.name ?? null,
+      name: mine.name,
+      phone: mine.phone,
+      email: mine.email,
+      affiliation: mine.affiliation,
+    },
+  ]
+}
+
+export function demoSchedule(date) {
+  const s = init()
+  return s.shifts
+    .filter((x) => x.date === date && x.memberIds.includes('demo-staff'))
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .map((x) => {
+      const duty = s.duties.find((d) => d.id === x.dutyId)
+      return {
+        id: x.id,
+        date: x.date,
+        dutyId: x.dutyId,
+        dutyName: duty?.name ?? '',
+        zone: duty?.zone ?? '',
+        start: x.start,
+        end: x.end,
+        mates: x.memberIds
+          .filter((id) => id !== 'demo-staff')
+          .map((id) => s.members.find((p) => p.id === id))
+          .filter(Boolean)
+          .map((p) => ({ id: p.id, name: p.name, role: p.role, phone: p.phone, dutyName: duty?.name ?? null })),
+      }
+    })
 }
 
 const nowHm = () => {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-const todayYmd = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-// The day the app shows as "오늘": today when it is an event day, else the first event day.
-export function scheduleDay(data) {
-  const days = staffDays(data)
-  return days.includes(todayYmd()) ? todayYmd() : days[0]
-}
-
-export const attendanceOn = (data, memberId, date) => (data.attendance[memberId] ?? []).find((a) => a.date === date) ?? null
-
-export function clockIn(memberId) {
-  const current = load()
-  const date = scheduleDay(current)
-  const list = current.attendance[memberId] ?? []
-  if (list.some((a) => a.date === date)) return
-  commit({
-    ...current,
-    attendance: { ...current.attendance, [memberId]: [...list, { date, in: nowHm(), out: null }] },
-    members: current.members.map((x) => (x.id === memberId ? { ...x, status: STAFF_STATUS.WORKING } : x)),
-  })
-}
-
-export function clockOut(memberId) {
-  const current = load()
-  const date = scheduleDay(current)
-  const list = current.attendance[memberId] ?? []
-  commit({
-    ...current,
-    attendance: { ...current.attendance, [memberId]: list.map((a) => (a.date === date && !a.out ? { ...a, out: nowHm() } : a)) },
-    members: current.members.map((x) => (x.id === memberId ? { ...x, status: STAFF_STATUS.WAITING, worked: true } : x)),
-  })
-}
-
-// Worked minutes of one attendance record (a 1 hour break is taken off long days).
-export function workedMinutes(record) {
-  if (!record?.out) return 0
-  const span = Number(record.out.slice(0, 2)) * 60 + Number(record.out.slice(3, 5)) - (Number(record.in.slice(0, 2)) * 60 + Number(record.in.slice(3, 5)))
+const minutesOf = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))
+const worked = (r) => {
+  if (!r.out) return 0
+  const span = minutesOf(r.out) - minutesOf(r.in)
   return Math.max(0, span >= 300 ? span - 60 : span)
 }
 
-// A member's shifts of one day, earliest first.
-export const myShifts = (data, memberId, date) =>
-  data.shifts
-    .filter((s) => s.date === date && s.memberIds.includes(memberId))
-    .sort((a, b) => a.start.localeCompare(b.start))
-
-// Gives up a join request (or starts over after a rejection).
-export function cancelStaffJoin(accountId) {
-  const current = load()
-  const id = current.accounts[accountId]
-  const { [accountId]: removed, ...accounts } = current.accounts
-  void removed
-  commit({ ...current, accounts, members: current.members.filter((x) => x.id !== id) })
+export function demoClock(kind) {
+  const date = SHIFT_DAYS[0]
+  if (kind === 'in') {
+    if (!attendance.some((r) => r.date === date)) attendance = [...attendance, { date, in: nowHm(), out: null, minutes: 0 }]
+  } else {
+    attendance = attendance.map((r) => (r.date === date && !r.out ? { ...r, out: nowHm() } : r)).map((r) => ({ ...r, minutes: worked(r) }))
+  }
+  return attendance.find((r) => r.date === date)
 }
 
-// ---- the event and its days ----
-
-// The event these people work at: the organizer's real event, or the sample one in preview mode.
-export const eventOf = (data) => data.event ?? DEMO_EVENT
-
-// The organizer's staff screen tells the store which event it manages (so staff accounts of the same
-// browser see its name and dates, and the schedule has the right days).
-export function setStaffEvent(event) {
-  const current = load()
-  const next = {
-    id: event.id,
-    name: event.name,
-    organizationName: event.organizationName ?? '',
-    startDate: event.startDate,
-    endDate: event.endDate,
-    venue: event.venue ?? '',
-    intro: event.intro ?? '',
-    imageUrl: event.imageUrl ?? null,
-    hours: null,
-    phone: null,
-    directions: null,
-  }
-  const old = current.event
-  if (old && Object.keys(next).every((k) => old[k] === next[k])) return
-  commit({ ...current, event: next })
+export function demoAttendance() {
+  const records = [...attendance].sort((a, b) => b.date.localeCompare(a.date))
+  return { records, totalMinutes: records.reduce((sum, r) => sum + worked(r), 0) }
 }
 
-const MAX_DAYS = 14
-
-// The days of the event ('YYYY-MM-DD'), at most two weeks; the sample days in preview mode.
-export function staffDays(data) {
-  const event = data.event
-  if (!event?.startDate || !event?.endDate) return SHIFT_DAYS
-  const days = []
-  const cursor = new Date(`${event.startDate}T00:00:00`)
-  const end = new Date(`${event.endDate}T00:00:00`)
-  while (cursor <= end && days.length < MAX_DAYS) {
-    days.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`)
-    cursor.setDate(cursor.getDate() + 1)
-  }
-  return days.length > 0 ? days : SHIFT_DAYS
+// Counts of a list of members by one field (role / status).
+export function countBy(members, key) {
+  const counts = {}
+  for (const x of members) counts[x[key]] = (counts[x[key]] ?? 0) + 1
+  return counts
 }

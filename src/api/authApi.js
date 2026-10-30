@@ -1,7 +1,7 @@
 // Auth endpoints of the backend (see backend-main/docs/AUTH_START.md). Shapes:
 //   signUp  -> { accountId }                 loginId / password / nickname / phoneNumber / email
 //   login   -> { id, nickname }
-//   getMe   -> { id, nickname, phoneNumber, email }   (no role: the backend does not store it)
+//   getMe   -> { id, nickname, phoneNumber, email, role }   role: ORGANIZER | OPERATOR | STAFF
 
 import { clearCsrf, get, post } from './client'
 

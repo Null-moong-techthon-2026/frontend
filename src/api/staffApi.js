@@ -1,37 +1,300 @@
-// What a staff account (a person who helps run an event) reads from the server.
+// 스태프 (people who help run an event): the organizer's staff screens and the staff app.
 //
-// There is NO staff backend yet (docs/BACKEND_REQUESTS.md): the invitation code, the event it opens,
-// the notices for staff and the schedule are all dummy data here (the schedule lives in
-// dummy/staffStore.js, shared with the organizer's 스태프 screens). When the backend gets staff
-// APIs, replace the bodies below; the shapes stay.
+// Real backend (all under /api):
+//   organizer   POST|GET|DELETE /events/:id/staff-invitation      invitation code + link
+//               GET   /events/:id/staff                           roster (+ summary)
+//               PATCH /events/:id/staff/:memberId                 role / status / duty / memo
+//               POST  /events/:id/staff/:memberId/decision        approve / reject
+//               GET|POST /events/:id/staff-duties                 duties (zone + name)
+//               GET|POST /events/:id/staff-shifts                 shifts of a day / add one
+//               PUT   /events/:id/staff-shifts/:shiftId/members   who works the shift
+//   staff       POST  /staff-invitations/resolve                  the event behind a code
+//               POST  /events/:id/staff-applications              ask to join (PENDING)
+//               GET   /me/staff-memberships                       my joins and their status
+//               GET   /events/:id/staff/me/schedule?date=         my shifts (+ who works with me)
+//               POST  /events/:id/staff/me/clock-in | clock-out   server time
+//               GET   /events/:id/staff/me/attendance             my records
+// The response bodies of these endpoints are not typed in the OpenAPI document, so the views below
+// accept the field names loosely (see the normalizers) and are the one place to adjust.
+// In ?demo preview mode everything comes from dummy/staffStore.js instead (in memory + this browser).
+//
+// View models:
+//   member { id, name, role, status, dutyId, dutyName, phone, email, affiliation, memo, revision }
+//   duty   { id, zone, name }
+//   shift  { id, date, dutyId, start, end, roles, memberIds, revision }
+//   mine   { id, date, dutyId, dutyName, zone, start, end, mates:[{id,name,role,phone}] }
+//   record { date, in, out, minutes }
 
 import { DEMO_EVENT, DEMO_NOTICES } from '../dummy/demoData'
-import { STAFF_INVITE, readStaffData } from '../dummy/staffStore'
+import * as store from '../dummy/staffStore'
 import { demoDelay, isDemo } from '../utils/demo'
+import { instantToLocalDate, instantToLocalDateTime } from '../utils/date'
+import { get, patch, post, put, query, del } from './client'
 
 const notFound = () => Object.assign(new Error('not found'), { status: 404, code: 'RESOURCE_NOT_FOUND' })
 
+// ---------------- normalizers ----------------
+
+// '14:00:00' | '14:00' | an ISO instant -> '14:00'
+const hm = (value) => {
+  if (!value) return ''
+  if (/^\d{2}:\d{2}/.test(value)) return value.slice(0, 5)
+  const local = instantToLocalDateTime(value)
+  return local ? local.slice(11, 16) : ''
+}
+
+const ymd = (value) => (!value ? '' : /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : instantToLocalDate(value))
+
+export const memberView = (r) => ({
+  id: r.memberId ?? r.id,
+  name: r.name ?? r.nickname ?? r.accountName ?? '',
+  role: r.role,
+  status: r.status,
+  dutyId: r.dutyId ?? r.duty?.id ?? null,
+  dutyName: r.dutyName ?? r.duty?.name ?? null,
+  phone: r.phone ?? r.phoneNumber ?? '',
+  email: r.email ?? '',
+  affiliation: r.affiliation ?? '',
+  memo: r.memo ?? '',
+  revision: r.revision ?? 0,
+})
+
+const dutyView = (r) => ({ id: r.id ?? r.dutyId, zone: r.zone ?? '', name: r.name ?? '' })
+
+const shiftView = (r) => {
+  const people = r.members ?? []
+  return {
+    id: r.id ?? r.shiftId,
+    date: ymd(r.date),
+    dutyId: r.dutyId ?? r.duty?.id,
+    start: hm(r.start),
+    end: hm(r.end),
+    roles: r.roles ?? [],
+    memberIds: r.memberIds ?? people.map((p) => p.memberId ?? p.id),
+    revision: r.revision ?? 0,
+  }
+}
+
+const mineView = (r) => ({
+  id: r.id ?? r.shiftId,
+  date: ymd(r.date),
+  dutyId: r.dutyId ?? r.duty?.id ?? null,
+  dutyName: r.dutyName ?? r.duty?.name ?? r.name ?? '',
+  zone: r.zone ?? r.duty?.zone ?? '',
+  start: hm(r.start),
+  end: hm(r.end),
+  mates: (r.mates ?? r.coworkers ?? r.members ?? r.people ?? []).map(memberView),
+})
+
+const recordView = (r) => ({
+  date: ymd(r.date),
+  in: hm(r.in ?? r.clockIn ?? r.clockInAt ?? r.checkInAt),
+  out: hm(r.out ?? r.clockOut ?? r.clockOutAt ?? r.checkOutAt) || null,
+  minutes: r.workedMinutes ?? r.minutes ?? r.workMinutes ?? null,
+})
+
+// What the page of members says about the roster: the server's summary, or counted here.
+const summaryOf = (raw, members) => {
+  const s = raw.summary
+  if (s) return { total: s.total ?? members.length, admin: s.admin ?? 0, staff: s.staff ?? 0, labor: s.labor ?? 0, volunteer: s.volunteer ?? 0, pending: s.pending ?? 0 }
+  const count = (k, v) => members.filter((m) => m[k] === v).length
+  return {
+    total: members.length,
+    admin: count('role', 'ADMIN'),
+    staff: count('role', 'STAFF'),
+    labor: count('role', 'LABOR'),
+    volunteer: count('role', 'VOLUNTEER'),
+    pending: count('status', 'PENDING'),
+  }
+}
+
+const base = (eventId) => `/api/events/${eventId}`
+
+// ---------------- organizer ----------------
+
+export async function getStaffInvitation(eventId) {
+  if (isDemo()) return demoDelay({ code: store.STAFF_INVITE.code, inviteUrl: `${window.location.origin}/invite/staff/${store.STAFF_INVITE.token}`, expiresAt: null })
+  try {
+    return await get(`${base(eventId)}/staff-invitation`)
+  } catch (err) {
+    if (err.status === 404) return null
+    throw err
+  }
+}
+
+export async function issueStaffInvitation(eventId) {
+  if (isDemo()) return getStaffInvitation(eventId)
+  return post(`${base(eventId)}/staff-invitation`)
+}
+
+export async function revokeStaffInvitation(eventId) {
+  if (isDemo()) return null
+  return del(`${base(eventId)}/staff-invitation`)
+}
+
+// -> { members, summary }  (everyone of the event; the screen filters and pages them itself)
+export async function listStaff(eventId) {
+  if (isDemo()) {
+    const members = store.readStaffData().members.map(memberView)
+    return demoDelay({ members, summary: summaryOf({}, members) })
+  }
+  const raw = await get(`${base(eventId)}/staff${query({ page: 0, size: 100 })}`)
+  const members = (raw.content ?? raw).map(memberView)
+  return { members, summary: summaryOf(raw, members) }
+}
+
+// fields: any of { role, status, dutyId (null = no duty), memo }
+export async function updateStaffMember(eventId, member, fields) {
+  if (isDemo()) {
+    if ('dutyId' in fields && fields.dutyId) store.assignDuty(member.id, fields.dutyId)
+    const { dutyId, ...rest } = fields
+    if (Object.keys(rest).length > 0 || ('dutyId' in fields && !dutyId)) store.updateMember(member.id, { ...rest, ...('dutyId' in fields && !dutyId ? { dutyId: null } : {}) })
+    return demoDelay(null)
+  }
+  return memberView(await patch(`${base(eventId)}/staff/${member.id}`, { revision: member.revision, ...fields }))
+}
+
+export async function decideStaffMember(eventId, member, decision) {
+  if (isDemo()) {
+    if (decision === 'APPROVED') store.approveMember(member.id)
+    else store.rejectMember(member.id)
+    return demoDelay(null)
+  }
+  return memberView(await post(`${base(eventId)}/staff/${member.id}/decision`, { decision, revision: member.revision }))
+}
+
+export async function listDuties(eventId) {
+  if (isDemo()) return demoDelay(store.readStaffData().duties.map(dutyView))
+  return (await get(`${base(eventId)}/staff-duties`)).map(dutyView)
+}
+
+export async function createDuty(eventId, { zone, name }) {
+  if (isDemo()) return demoDelay(dutyView(store.addDuty({ zone, name, start: '14:00', end: '16:00' })))
+  return dutyView(await post(`${base(eventId)}/staff-duties`, { zone, name }))
+}
+
+export async function listShifts(eventId, date) {
+  if (isDemo()) return demoDelay(store.readStaffData().shifts.filter((s) => s.date === date).map(shiftView))
+  return (await get(`${base(eventId)}/staff-shifts${query({ date })}`)).map(shiftView)
+}
+
+export async function createShift(eventId, { date, dutyId, start, end, roles }) {
+  if (isDemo()) return demoDelay(shiftView(store.addShift({ date, dutyId, start, end, roles })))
+  return shiftView(await post(`${base(eventId)}/staff-shifts`, { date, dutyId, start, end, roles }))
+}
+
+export async function replaceShiftMembers(eventId, shift, memberIds) {
+  if (isDemo()) {
+    store.setShiftMembers(shift.id, memberIds)
+    return demoDelay(null)
+  }
+  return shiftView(await put(`${base(eventId)}/staff-shifts/${shift.id}/members`, { memberIds, revision: shift.revision }))
+}
+
+// ---------------- staff (the logged-in staff account) ----------------
+
 // The event an invitation code (or the token of an invitation link) opens. 404 for a wrong code.
-// Dummy: only the code the organizer sees in "스태프 초대" works, and it opens the organizer's event
-// (known once the organizer opened the 스태프 screen in this browser).
-export async function resolveStaffInvite(codeOrToken) {
-  const value = codeOrToken.trim().toLowerCase()
-  const known = [STAFF_INVITE.code, STAFF_INVITE.token].map((c) => c.toLowerCase())
-  if (!known.includes(value) && !(isDemo() && value.length >= 4)) throw notFound()
-  if (isDemo()) return demoDelay(DEMO_EVENT)
-  // The event the organizer's staff screen announced (same browser); none yet = nothing to join.
-  const event = readStaffData().event
-  if (!event) throw notFound()
-  return demoDelay(event)
+export async function resolveStaffInvite(code) {
+  const value = code.trim()
+  if (isDemo()) {
+    if (value.length < 4) throw notFound()
+    return demoDelay({ eventId: DEMO_EVENT.id, event: DEMO_EVENT })
+  }
+  const raw = await post('/api/staff-invitations/resolve', { code: value })
+  const e = raw.event ?? raw
+  return {
+    eventId: raw.eventId ?? e.eventId ?? e.id,
+    event: {
+      id: raw.eventId ?? e.eventId ?? e.id,
+      name: e.name ?? e.eventName ?? '',
+      organizationName: e.organizationName ?? e.organization?.name ?? '',
+      startDate: ymd(e.startDate ?? e.startsAt),
+      endDate: ymd(e.endDate ?? e.endsAt),
+      venue: e.venue ?? '',
+      intro: e.description ?? e.intro ?? '',
+      // the event picture behind a valid invitation
+      imageUrl: `/api/staff-invitations/${encodeURIComponent(value)}/poster`,
+      hours: null,
+      phone: null,
+      directions: null,
+    },
+  }
 }
 
-// Notices for staff. Only in preview mode: without a backend a staff account has no event to read from.
-export async function listStaffNotices() {
-  return isDemo() ? demoDelay(DEMO_NOTICES.filter((n) => n.audiences.includes('STAFF'))) : []
+// role: STAFF | LABOR | VOLUNTEER
+export async function applyStaff(eventId, { code, role, affiliation }) {
+  if (isDemo()) return demoDelay(null)
+  return memberView(await post(`${base(eventId)}/staff-applications`, { code, role, ...(affiliation ? { affiliation } : {}) }))
 }
 
-export async function getStaffNotice(noticeId) {
-  const found = (await listStaffNotices()).find((n) => n.id === noticeId)
-  if (!found) throw notFound()
-  return found
+// -> [{ eventId, memberId, role, status, eventName, dutyName, ... }]
+export async function listMyStaffMemberships() {
+  if (isDemo()) return demoDelay(store.demoMemberships())
+  const raw = await get('/api/me/staff-memberships')
+  return (raw.content ?? raw).map((r) => ({
+    eventId: r.eventId ?? r.event?.id,
+    memberId: r.memberId ?? r.id,
+    role: r.role,
+    status: r.status,
+    eventName: r.eventName ?? r.event?.name ?? '',
+    startDate: ymd(r.startDate ?? r.startsAt ?? r.event?.startsAt),
+    endDate: ymd(r.endDate ?? r.endsAt ?? r.event?.endsAt),
+    venue: r.venue ?? r.event?.venue ?? '',
+    dutyName: r.dutyName ?? r.duty?.name ?? null,
+    name: r.name ?? '',
+    phone: r.phone ?? r.phoneNumber ?? '',
+    email: r.email ?? '',
+    affiliation: r.affiliation ?? '',
+  }))
+}
+
+export async function listMySchedule(eventId, date) {
+  if (isDemo()) return demoDelay(store.demoSchedule(date))
+  return (await get(`${base(eventId)}/staff/me/schedule${query({ date })}`)).map(mineView)
+}
+
+export async function clockIn(eventId) {
+  if (isDemo()) return demoDelay(store.demoClock('in'))
+  return recordView(await post(`${base(eventId)}/staff/me/clock-in`))
+}
+
+export async function clockOut(eventId) {
+  if (isDemo()) return demoDelay(store.demoClock('out'))
+  return recordView(await post(`${base(eventId)}/staff/me/clock-out`))
+}
+
+// -> { records (newest first), totalMinutes }
+export async function listMyAttendance(eventId) {
+  if (isDemo()) return demoDelay(store.demoAttendance())
+  const raw = await get(`${base(eventId)}/staff/me/attendance${query({ page: 0, size: 100 })}`)
+  const records = (raw.content ?? raw.records ?? raw).map(recordView)
+  const total = raw.totalMinutes ?? raw.workedMinutes ?? records.reduce((sum, r) => sum + (r.minutes ?? 0), 0)
+  return { records, totalMinutes: total }
+}
+
+// Notices for staff: the normal announcement API, readable by approved staff (audience STAFF).
+const noticeRow = (raw) => ({
+  id: raw.id,
+  title: raw.title,
+  body: raw.body ?? '',
+  urgent: Boolean(raw.isUrgent),
+  publishedAt: raw.publishedAt,
+  author: '',
+  attachment: null,
+  imageUrl: raw.imageUrl ?? null,
+})
+
+export async function listStaffNotices(eventId) {
+  if (isDemo()) return demoDelay(DEMO_NOTICES.filter((n) => n.audiences.includes('STAFF')))
+  const page = await get(`${base(eventId)}/announcements${query({ view: 'READ', page: 0, size: 100 })}`)
+  return page.content.map(noticeRow)
+}
+
+export async function getStaffNotice(eventId, noticeId) {
+  if (isDemo()) {
+    const found = DEMO_NOTICES.find((n) => n.id === noticeId)
+    if (!found) throw notFound()
+    return demoDelay(found)
+  }
+  return noticeRow(await get(`${base(eventId)}/announcements/${noticeId}`))
 }

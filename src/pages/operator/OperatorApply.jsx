@@ -12,8 +12,6 @@ import { normalizePhone, validateEmail, validatePhone } from '../../utils/valida
 import './operator.css'
 
 const NEW_PROFILE = '__new__'
-const EQUIPMENT = ['전기', '물', '화기', '테이블']
-const EXPERIENCE = ['있어요', '처음이에요']
 
 // 04 부스 신청서 · 부스 운영자
 export default function OperatorApply() {
@@ -37,8 +35,6 @@ export default function OperatorApply() {
     newCategory: BOOTH_CATEGORY.FOOD,
     newIntro: '',
   })
-  const [extras, setExtras] = useState({ items: '', equipment: [], experience: '', plan: '' })
-  const [files, setFiles] = useState({})
   const [showErrors, setShowErrors] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -106,12 +102,6 @@ export default function OperatorApply() {
       setBusy(false)
     }
   }
-
-  const toggleEquipment = (name) =>
-    setExtras((x) => ({
-      ...x,
-      equipment: x.equipment.includes(name) ? x.equipment.filter((e) => e !== name) : [...x.equipment, name],
-    }))
 
   return (
     <>
@@ -181,66 +171,6 @@ export default function OperatorApply() {
         )}
       </div>
 
-      <h2 className="mb-h3">판매 품목 (선택)</h2>
-      <textarea
-        className="mb-textarea"
-        placeholder="예: 떡볶이, 어묵, 음료"
-        value={extras.items}
-        onChange={(e) => setExtras((x) => ({ ...x, items: e.target.value }))}
-      />
-
-      <h2 className="mb-h3">필요 설비 (복수 선택)</h2>
-      <div className="op-checks">
-        {EQUIPMENT.map((name) => (
-          <label key={name}>
-            <input type="checkbox" checked={extras.equipment.includes(name)} onChange={() => toggleEquipment(name)} />
-            {name}
-          </label>
-        ))}
-      </div>
-
-      <h2 className="mb-h3">주최측 추가 질문</h2>
-      <Field label="Q1. 부스 운영 경험이 있으신가요?">
-        <select className="mb-select" value={extras.experience} onChange={(e) => setExtras((x) => ({ ...x, experience: e.target.value }))}>
-          <option value="">선택해 주세요</option>
-          {EXPERIENCE.map((o) => (
-            <option key={o}>{o}</option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Q2. 운영 계획을 간단히 소개해 주세요. (선택)">
-        <textarea
-          className="mb-textarea"
-          placeholder="내용을 입력해 주세요."
-          value={extras.plan}
-          onChange={(e) => setExtras((x) => ({ ...x, plan: e.target.value }))}
-        />
-      </Field>
-
-      <h2 className="mb-h3">서류 업로드</h2>
-      <p className="mb-muted">행사에서 요청한 서류를 첨부해 주세요.</p>
-      <div className="op-docs">
-        {recruitment.documents.length === 0 && <p className="mb-muted">이 행사는 따로 요청한 서류가 없어요.</p>}
-        {recruitment.documents.map((d) => (
-          <label key={d.id} className="mb-card op-doc">
-            <MIcon name="upload" size={20} />
-            <span>
-              <strong>
-                {d.name}
-                {d.required && ' *'}
-              </strong>
-              <small>{files[d.id] ?? '파일을 선택해 주세요.'}</small>
-            </span>
-            <MIcon name="plus" size={18} />
-            <input
-              type="file"
-              hidden
-              onChange={(e) => setFiles((f) => ({ ...f, [d.id]: e.target.files[0]?.name ?? '' }))}
-            />
-          </label>
-        ))}
-      </div>
-      <p className="op-note">※ 판매 품목, 필요 설비, 추가 질문, 서류는 아직 서버에 저장되지 않아요. (준비 중)</p>
       <p className="op-note">제출 후 검토 결과와 진행 상황은 상태&초대에서 확인할 수 있습니다.</p>
 
       {message && <p className="mb-error" role="alert">{message}</p>}

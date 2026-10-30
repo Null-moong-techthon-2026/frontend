@@ -1,31 +1,62 @@
-import { useEffect } from 'react'
+import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { getEvent } from '../../api/eventApi'
+import { listMyStaffMemberships } from '../../api/staffApi'
 import MobileLayout from '../../components/mobile/MobileLayout'
+import { LoadingBlock } from '../../components/mobile/MobileUi'
 import { useAuth } from '../../context/useAuth'
-import { STAFF_STATUS, ensureDemoStaff, memberOfAccount, useStaffData } from '../../dummy/staffStore'
+import { DEMO_EVENT } from '../../dummy/demoData'
+import { STAFF_STATUS, setDemoNewcomer } from '../../dummy/staffStore'
 import { isDemo, isDemoNewcomer } from '../../utils/demo'
+import { toEvent } from '../../utils/event'
+import { useAsync } from '../../utils/useAsync'
 import './staff-app.css'
 
-// The staff app (/staff/...). Tabs: 홈 / 일정 / 공지 / 프로필. A staff account is one member of the
-// staff data (dummy/staffStore.js): none yet -> enters an invitation code, then waits for approval.
-// Hands { user, data, me, state } to the screens through the outlet context, where state is
-//   'none' (no member yet) | 'pending' (waiting for approval) | 'rejected' | 'approved'
+// What the staff app shows of the event: the event itself when the account may read it, else what
+// the membership says about it.
+async function loadEvent(mine) {
+  if (isDemo()) return DEMO_EVENT
+  const fallback = {
+    id: mine.eventId,
+    name: mine.eventName,
+    organizationName: '',
+    startDate: mine.startDate,
+    endDate: mine.endDate,
+    venue: mine.venue,
+    intro: '',
+    imageUrl: null,
+    hours: null,
+    phone: null,
+    directions: null,
+  }
+  try {
+    return { ...fallback, ...toEvent(await getEvent(mine.eventId)), hours: null, phone: null, directions: null }
+  } catch {
+    return fallback
+  }
+}
+
+// The staff app (/staff/...). Tabs: 홈 / 일정 / 공지 / 프로필. A staff account joins an event with an
+// invitation code and waits for the organizer's approval. Hands these to the screens through the
+// outlet context:
+//   { user, mine (the membership or null), state, event, reload }
+// where state is 'none' (not joined) | 'pending' (waiting for approval) | 'rejected' | 'approved'.
 export default function StaffLayout() {
   const { user } = useAuth()
-  const data = useStaffData()
-  const demoStaff = isDemo() && !isDemoNewcomer()
+  // Preview mode: ?demo=1 is an approved staff member, ?demo=2 a newcomer.
+  useState(() => {
+    if (isDemo()) setDemoNewcomer(isDemoNewcomer())
+    return null
+  })
+  const { data: memberships, error, reload } = useAsync(listMyStaffMemberships, [user.id])
+  const mine = memberships?.[0] ?? null
+  const { data: event } = useAsync(() => (mine ? loadEvent(mine) : null), [mine?.eventId])
 
-  // Preview mode: the demo account is an approved staff member (?demo=2 stays a newcomer).
-  useEffect(() => {
-    if (demoStaff) ensureDemoStaff(user)
-  }, [demoStaff, user])
-
-  const me = memberOfAccount(data, user.id)
-  const state = !me
+  const state = !mine
     ? 'none'
-    : me.status === STAFF_STATUS.PENDING
+    : mine.status === STAFF_STATUS.PENDING
       ? 'pending'
-      : me.status === STAFF_STATUS.REJECTED
+      : mine.status === STAFF_STATUS.REJECTED
         ? 'rejected'
         : 'approved'
 
@@ -38,7 +69,11 @@ export default function StaffLayout() {
 
   return (
     <MobileLayout chip="스태프" tabs={tabs} bellTo="/staff/notices">
-      <Outlet context={{ user, data, me, state }} />
+      {memberships && (state === 'none' || event) ? (
+        <Outlet context={{ user, mine, state, event, reload }} />
+      ) : (
+        <LoadingBlock error={error} onRetry={reload} />
+      )}
     </MobileLayout>
   )
 }

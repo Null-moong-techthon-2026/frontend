@@ -4,7 +4,6 @@ import { getStaffNotice, listStaffNotices } from '../../api/staffApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { ContactHqButton, LoadingBlock } from '../../components/mobile/MobileUi'
-import { eventOf } from '../../dummy/staffStore'
 import { longDateTime, shortDateTime } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './staff-app.css'
@@ -37,11 +36,16 @@ export function NeedApproval({ state, title }) {
 
 // 06 공지 · 스태프
 export function StaffNotices() {
-  const navigate = useNavigate()
-  const { state, data } = useOutletContext()
-  const [filter, setFilter] = useState('all')
-  const { data: notices, error, reload } = useAsync(listStaffNotices, [])
+  const { state } = useOutletContext()
   if (state !== 'approved') return <NeedApproval state={state} title="공지" />
+  return <NoticeList />
+}
+
+function NoticeList() {
+  const navigate = useNavigate()
+  const { mine, event } = useOutletContext()
+  const [filter, setFilter] = useState('all')
+  const { data: notices, error, reload } = useAsync(() => listStaffNotices(mine.eventId), [mine.eventId])
 
   const shown = [...(notices ?? [])]
     .filter((n) => filter === 'all' || (filter === 'urgent') === n.urgent)
@@ -50,7 +54,7 @@ export function StaffNotices() {
   return (
     <>
       <h1 className="mb-title">공지</h1>
-      <p className="mb-sub">{eventOf(data).name}의 운영 소식을 확인하세요.</p>
+      <p className="mb-sub">{event.name}의 운영 소식을 확인하세요.</p>
       <div className="mb-seg">
         {FILTERS.map(([key, label]) => (
           <button key={key} type="button" className={filter === key ? 'is-active' : ''} onClick={() => setFilter(key)}>
@@ -82,10 +86,16 @@ export function StaffNotices() {
 
 // 06-1 공지 상세 · 스태프
 export function StaffNoticeDetail() {
+  const { state } = useOutletContext()
+  if (state !== 'approved') return <NeedApproval state={state} title="공지" />
+  return <NoticeDetail />
+}
+
+function NoticeDetail() {
   const navigate = useNavigate()
   const { noticeId } = useParams()
-  const { state, data } = useOutletContext()
-  const { data: notice, error, reload } = useAsync(() => getStaffNotice(noticeId), [noticeId])
+  const { mine, event } = useOutletContext()
+  const { data: notice, error, reload } = useAsync(() => getStaffNotice(mine.eventId, noticeId), [mine.eventId, noticeId])
 
   const back = (
     <button type="button" className="mb-back" onClick={() => navigate('/staff/notices')}>
@@ -93,7 +103,6 @@ export function StaffNoticeDetail() {
       공지
     </button>
   )
-  if (state !== 'approved') return <NeedApproval state={state} title="공지" />
   if (!notice) {
     return (
       <>
@@ -107,21 +116,15 @@ export function StaffNoticeDetail() {
       {back}
       <span className={`mb-chip${notice.urgent ? '' : ' is-gray'}`}>{notice.urgent ? '긴급' : '일반'}</span>
       <h1 className="mb-title is-sm vs-notice-h1">{notice.title}</h1>
-      <p className="mb-muted">{[notice.author, longDateTime(notice.publishedAt)].filter(Boolean).join(' · ')}</p>
+      <p className="mb-muted">{[notice.author || event.organizationName, longDateTime(notice.publishedAt)].filter(Boolean).join(' · ')}</p>
       <div className="mb-card vs-notice-body">
         {notice.body.split(/\n{2,}/).map((para, i) => (
           <p key={i}>{para}</p>
         ))}
       </div>
-      {notice.attachment && (
-        <div className="mb-card vs-attach">
-          <MIcon name="file" size={18} />
-          <span>{notice.attachment}</span>
-          <MIcon name="chevron" size={16} />
-        </div>
-      )}
+      {notice.imageUrl && <img className="vs-notice-img" src={notice.imageUrl} alt="" />}
       <MobileFooter>
-        <ContactHqButton phone={eventOf(data).phone} />
+        <ContactHqButton phone={event.phone} />
       </MobileFooter>
     </>
   )

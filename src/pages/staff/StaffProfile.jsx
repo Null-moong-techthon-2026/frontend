@@ -1,28 +1,43 @@
-import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import MobileFooter from '../../components/mobile/MobileFooter'
+import { listMyAttendance } from '../../api/staffApi'
+import { ContactHqButton, LoadingBlock } from '../../components/mobile/MobileUi'
 import MIcon from '../../components/mobile/MobileIcons'
-import { ContactHqButton } from '../../components/mobile/MobileUi'
 import { useAuth } from '../../context/useAuth'
-import { STAFF_ROLE_LABEL, attendanceOn, dutyOf, eventOf, myShifts, scheduleDay, updateProfile, workedMinutes } from '../../dummy/staffStore'
+import { STAFF_ROLE_LABEL } from '../../dummy/staffStore'
 import { dateRange, dayTitle } from '../../utils/mobileFormat'
-import { normalizePhone, validateEmail, validatePhone } from '../../utils/validators'
+import { useAsync } from '../../utils/useAsync'
+import { scheduleDay } from '../../utils/eventDays'
 import { NeedApproval } from './StaffNotices'
 import './staff-app.css'
 
 const hoursOf = (min) => `${Math.floor(min / 60)}시간${min % 60 ? ` ${min % 60}분` : ''}`
+const toMin = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))
+
+// What the screens show about the person: the membership first, then the account.
+function whoIs(mine, user) {
+  return {
+    name: mine?.name || user.nickname,
+    email: mine?.email || user.email || '',
+    phone: mine?.phone || user.phoneNumber || '',
+    affiliation: mine?.affiliation || '',
+  }
+}
 
 // 07 프로필 · 스태프
 export function StaffProfile() {
+  const { state } = useOutletContext()
+  if (state !== 'approved') return <NeedApproval state={state} title="프로필" />
+  return <Profile />
+}
+
+function Profile() {
   const navigate = useNavigate()
   const { logout } = useAuth()
-  const { state, me, data } = useOutletContext()
-  if (state !== 'approved') return <NeedApproval state={state} title="프로필" />
-
-  const duty = dutyOf(data, me)
-  const records = data.attendance[me.id] ?? []
-  const todayMin = workedMinutes(attendanceOn(data, me.id, scheduleDay(data)))
-  const totalMin = records.reduce((sum, r) => sum + workedMinutes(r), 0)
+  const { user, mine, event } = useOutletContext()
+  const { data: attendance } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
+  const who = whoIs(mine, user)
+  const records = attendance?.records ?? []
+  const today = records.find((r) => r.date === scheduleDay(event))
 
   return (
     <>
@@ -36,31 +51,35 @@ export function StaffProfile() {
               <MIcon name="user" size={26} />
             </span>
             <span>
-              <strong>{me.name}</strong>
-              <small>{me.email}</small>
+              <strong>{who.name}</strong>
+              <small>{who.email}</small>
             </span>
           </span>
-          <button type="button" className="mb-link" onClick={() => navigate('/staff/profile/edit')}>
-            수정하기 ›
-          </button>
         </div>
         <dl className="mb-kv sa-kv">
           <dt>연락처</dt>
-          <dd>{me.phone}</dd>
+          <dd>{who.phone || '-'}</dd>
           <dt>소속</dt>
-          <dd>{me.affiliation || '-'}</dd>
+          <dd>{who.affiliation || '-'}</dd>
         </dl>
+        <button type="button" className="op-edit-link" onClick={() => navigate('/staff/profile/account')}>
+          <span>
+            <strong>계정 정보 보기</strong>
+            <small>이름 · 연락처 · 이메일</small>
+          </span>
+          <MIcon name="chevron" size={18} />
+        </button>
       </div>
 
       <div className="mb-card">
         <h3>참여 정보</h3>
         <dl className="mb-kv sa-kv">
           <dt>역할</dt>
-          <dd>{STAFF_ROLE_LABEL[me.role]}</dd>
+          <dd>{STAFF_ROLE_LABEL[mine.role] ?? mine.role}</dd>
           <dt>업무</dt>
-          <dd>{duty?.name ?? '미배정'}</dd>
+          <dd>{mine.dutyName ?? '미배정'}</dd>
           <dt>참여 행사</dt>
-          <dd>{eventOf(data).name}</dd>
+          <dd>{event.name}</dd>
         </dl>
         <p className="mb-muted sa-caption">역할 · 업무 · 참여 행사는 주최자가 관리합니다.</p>
       </div>
@@ -75,17 +94,17 @@ export function StaffProfile() {
         <div className="sa-clock">
           <span>
             <small>오늘 근무</small>
-            <b>{hoursOf(todayMin)}</b>
+            <b>{hoursOf(today?.minutes ?? 0)}</b>
           </span>
           <span>
             <small>누적 근무</small>
-            <b>{hoursOf(totalMin)}</b>
+            <b>{hoursOf(attendance?.totalMinutes ?? 0)}</b>
           </span>
         </div>
-        {records.length === 0 && <p className="mb-muted sa-caption">아직 출퇴근 기록이 없습니다.</p>}
+        {attendance && records.length === 0 && <p className="mb-muted sa-caption">아직 출퇴근 기록이 없습니다.</p>}
       </div>
 
-      <ContactHqButton phone={eventOf(data).phone} className="mb-btn is-outline sa-contact" />
+      <ContactHqButton phone={event.phone} className="mb-btn is-outline sa-contact" />
       <button
         type="button"
         className="op-logout"
@@ -100,100 +119,48 @@ export function StaffProfile() {
   )
 }
 
-// 07-1 개인정보 수정 · 스태프
-export function StaffProfileEdit() {
+// 계정 정보 · 스태프 (read-only: the backend has no API to change an account yet)
+export function StaffAccount() {
   const navigate = useNavigate()
-  const { state, me, data } = useOutletContext()
-  if (state !== 'approved') return <NeedApproval state={state} title="프로필" />
-  return <EditForm key={me.id} me={me} data={data} onDone={() => navigate('/staff/profile')} />
-}
-
-function EditForm({ me, data, onDone }) {
-  const navigate = useNavigate()
-  const [form, setForm] = useState({ name: me.name, phone: me.phone, email: me.email, affiliation: me.affiliation })
-  const [showErrors, setShowErrors] = useState(false)
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
-  const duty = dutyOf(data, me)
-  const errors = {
-    name: form.name.trim() ? '' : '이름을 입력해 주세요.',
-    phone: validatePhone(form.phone),
-    email: validateEmail(form.email),
-  }
-  const invalid = Object.values(errors).some(Boolean)
-  const shown = (key) => (showErrors ? errors[key] : '')
-
-  const save = () => {
-    setShowErrors(true)
-    if (invalid) return
-    const digits = normalizePhone(form.phone)
-    const phone = digits.length === 11 ? `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}` : digits
-    updateProfile(me.id, { name: form.name.trim(), phone, email: form.email.trim(), affiliation: form.affiliation.trim() })
-    onDone()
-  }
-
+  const { user, mine } = useOutletContext()
+  const who = whoIs(mine, user)
   return (
     <>
       <button type="button" className="mb-back" onClick={() => navigate('/staff/profile')}>
         <MIcon name="back" size={18} />
         프로필
       </button>
-      <h1 className="mb-title is-sm">개인정보 수정</h1>
-      <p className="mb-sub">변경할 정보를 입력해 주세요.</p>
-      <Field label="이름" error={shown('name')}>
-        <input className="mb-input" value={form.name} onChange={set('name')} />
-      </Field>
-      <Field label="연락처" error={shown('phone')}>
-        <input className="mb-input" value={form.phone} onChange={set('phone')} inputMode="tel" />
-      </Field>
-      <Field label="이메일" error={shown('email')}>
-        <input className="mb-input" value={form.email} onChange={set('email')} inputMode="email" />
-      </Field>
-      <Field label="소속">
-        <input className="mb-input" value={form.affiliation} onChange={set('affiliation')} />
-      </Field>
+      <h1 className="mb-title is-sm">계정 정보</h1>
+      <p className="mb-sub">가입할 때 입력한 정보예요.</p>
       <div className="mb-card">
-        <h3>
-          주최자 관리 정보 <MIcon name="info" size={14} />
-        </h3>
-        <dl className="mb-kv sa-kv">
-          <dt>역할</dt>
-          <dd>{STAFF_ROLE_LABEL[me.role]}</dd>
-          <dt>업무</dt>
-          <dd>{duty?.name ?? '미배정'}</dd>
-          <dt>참여 행사</dt>
-          <dd>{eventOf(data).name}</dd>
+        <dl className="mb-kv">
+          <dt>이름</dt>
+          <dd>{who.name}</dd>
+          <dt>연락처</dt>
+          <dd>{who.phone || '-'}</dd>
+          <dt>이메일</dt>
+          <dd>{who.email || '-'}</dd>
+          <dt>소속</dt>
+          <dd>{who.affiliation || '-'}</dd>
         </dl>
-        <p className="mb-muted sa-caption">변경이 필요하면 주최측에 문의해 주세요.</p>
       </div>
-      <p className="op-note">※ 정보는 아직 이 브라우저에만 저장돼요. (서버 준비 중)</p>
-      <MobileFooter>
-        <button type="button" className="mb-btn is-primary" onClick={save}>
-          저장하기
-        </button>
-      </MobileFooter>
+      <p className="op-note">※ 계정 정보 수정은 아직 지원하지 않아요.</p>
     </>
-  )
-}
-
-function Field({ label, error, children }) {
-  return (
-    <div className="mb-field">
-      <span className="mb-label">{label}</span>
-      {children}
-      {error && <p className="mb-error">{error}</p>}
-    </div>
   )
 }
 
 // 07-2 근무 기록 · 스태프
 export function StaffRecords() {
-  const navigate = useNavigate()
-  const { state, me, data } = useOutletContext()
+  const { state } = useOutletContext()
   if (state !== 'approved') return <NeedApproval state={state} title="프로필" />
+  return <Records />
+}
 
-  const records = [...(data.attendance[me.id] ?? [])].sort((a, b) => b.date.localeCompare(a.date))
-  const totalMin = records.reduce((sum, r) => sum + workedMinutes(r), 0)
-  const todayMin = workedMinutes(attendanceOn(data, me.id, scheduleDay(data)))
+function Records() {
+  const navigate = useNavigate()
+  const { mine, event } = useOutletContext()
+  const { data: attendance, error, reload } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
+  const today = attendance?.records.find((r) => r.date === scheduleDay(event))
 
   return (
     <>
@@ -204,62 +171,50 @@ export function StaffRecords() {
       <h1 className="mb-title is-sm">근무 기록</h1>
       <p className="mb-sub">내 출퇴근과 근무 시간 기록을 확인하세요.</p>
       <div className="mb-card">
-        <strong>{eventOf(data).name}</strong>
-        <p className="mb-muted sa-caption">{dateRange(eventOf(data).startDate, eventOf(data).endDate)}</p>
+        <strong>{event.name}</strong>
+        <p className="mb-muted sa-caption">{dateRange(event.startDate, event.endDate)}</p>
       </div>
-      <div className="mb-card sa-clock">
-        <span>
-          <small>오늘 근무</small>
-          <b>{hoursOf(todayMin)}</b>
-        </span>
-        <span>
-          <small>누적 근무</small>
-          <b>{hoursOf(totalMin)}</b>
-        </span>
-      </div>
-
-      {records.length === 0 && <p className="mb-empty">아직 출퇴근 기록이 없어요. 홈에서 출근하기를 눌러 보세요.</p>}
-      {records.map((r) => {
-        const min = workedMinutes(r)
-        const shifts = myShifts(data, me.id, r.date)
-        return (
-          <div key={r.date} className="mb-card">
-            <div className="mb-card-row">
-              <h3>{dayTitle(r.date)}</h3>
-              <span className={`mb-chip ${r.out ? 'is-outline' : 'is-green'}`}>{r.out ? '근무 완료' : '근무 중'}</span>
-            </div>
-            <dl className="mb-kv sa-kv">
-              <dt>출근</dt>
-              <dd>{r.in}</dd>
-              <dt>퇴근</dt>
-              <dd>{r.out ?? '—'}</dd>
-              <dt>휴식</dt>
-              <dd>{r.out && min > 0 ? hoursOf(Math.max(0, toMin(r.out) - toMin(r.in) - min)) : '—'}</dd>
-              <dt>기록된 근무</dt>
-              <dd>{hoursOf(min)}</dd>
-            </dl>
-            {shifts.length > 0 && (
-              <>
-                <h4 className="sa-sub-h">배정된 업무</h4>
-                <ul className="sa-assigned">
-                  {shifts.map((s) => (
-                    <li key={s.id}>
-                      <span>{data.duties.find((d) => d.id === s.dutyId)?.name}</span>
-                      <b>
-                        {s.start} – {s.end}
-                      </b>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+      {!attendance ? (
+        <LoadingBlock error={error} onRetry={reload} />
+      ) : (
+        <>
+          <div className="mb-card sa-clock">
+            <span>
+              <small>오늘 근무</small>
+              <b>{hoursOf(today?.minutes ?? 0)}</b>
+            </span>
+            <span>
+              <small>누적 근무</small>
+              <b>{hoursOf(attendance.totalMinutes)}</b>
+            </span>
           </div>
-        )
-      })}
+          {attendance.records.length === 0 && <p className="mb-empty">아직 출퇴근 기록이 없어요. 홈에서 출근하기를 눌러 보세요.</p>}
+          {attendance.records.map((r) => {
+            const span = r.out ? toMin(r.out) - toMin(r.in) : 0
+            const minutes = r.minutes ?? span
+            return (
+              <div key={r.date} className="mb-card">
+                <div className="mb-card-row">
+                  <h3>{dayTitle(r.date)}</h3>
+                  <span className={`mb-chip ${r.out ? 'is-outline' : 'is-green'}`}>{r.out ? '근무 완료' : '근무 중'}</span>
+                </div>
+                <dl className="mb-kv sa-kv">
+                  <dt>출근</dt>
+                  <dd>{r.in || '—'}</dd>
+                  <dt>퇴근</dt>
+                  <dd>{r.out ?? '—'}</dd>
+                  <dt>휴식</dt>
+                  <dd>{r.out ? hoursOf(Math.max(0, span - minutes)) : '—'}</dd>
+                  <dt>기록된 근무</dt>
+                  <dd>{hoursOf(minutes)}</dd>
+                </dl>
+              </div>
+            )
+          })}
+        </>
+      )}
       <p className="mb-muted sa-caption">출퇴근 기록에 이상이 있으면 운영본부에 문의해 주세요.</p>
-      <ContactHqButton phone={eventOf(data).phone} />
+      <ContactHqButton phone={event.phone} />
     </>
   )
 }
-
-const toMin = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))

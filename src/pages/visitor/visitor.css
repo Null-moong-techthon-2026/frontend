@@ -498,3 +498,17 @@
 .vs-sponsor .mb-btn {
   text-decoration: none;
 }
+
+.vs-gallery {
+  display: flex;
+  gap: 8px;
+  margin: -6px 0 14px;
+  overflow-x: auto;
+}
+.vs-gallery img {
+  flex: none;
+  width: 96px;
+  height: 72px;
+  border-radius: 10px;
+  object-fit: cover;
+}

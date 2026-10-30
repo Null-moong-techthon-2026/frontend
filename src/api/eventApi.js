@@ -11,6 +11,11 @@ import { del, get, patch, post, query } from './client'
 export const listMyEvents = (participation = 'ORGANIZER', page = 0, size = 20) =>
   get(`/api/me/events${query({ participation, page, size })}`)
 
+// POST /api/event-openings -> 201 the new event. Creates the organization (the account becomes its
+// OWNER), a draft event and an empty recruitment in one step. No approval.
+// body: { orgName, orgType, eventName, startsAt, endsAt, venue }
+export const openEvent = (body) => post('/api/event-openings', body)
+
 // GET /api/events/:eventId
 export const getEvent = (eventId) => get(`/api/events/${eventId}`)
 

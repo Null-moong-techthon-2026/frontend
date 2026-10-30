@@ -1,20 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { listStaffNotices, resolveStaffInvite } from '../../api/staffApi'
+import { clockIn, clockOut, listMyAttendance, listMySchedule, listStaffNotices, resolveStaffInvite } from '../../api/staffApi'
+import { apiErrorMessage } from '../../constants/errors'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { EventPicture } from '../../components/mobile/MobileUi'
-import {
-  STAFF_ROLE_LABEL,
-  attendanceOn,
-  cancelStaffJoin,
-  clockIn,
-  clockOut,
-  dutyOf,
-  eventOf,
-  myShifts,
-  scheduleDay,
-} from '../../dummy/staffStore'
+import { STAFF_ROLE_LABEL } from '../../dummy/staffStore'
+import { scheduleDay } from '../../utils/eventDays'
 import { dateRange, dayTitle, shortDateTime } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './staff-app.css'
@@ -39,10 +31,12 @@ function EnterCode() {
     setBusy(true)
     setMessage('')
     try {
-      const event = await resolveStaffInvite(code)
-      navigate('/staff/join', { state: { event, code: code.trim() } })
-    } catch {
-      setMessage('초대 코드를 확인해 주세요. 코드가 틀렸거나 기간이 지났을 수 있어요.')
+      const resolved = await resolveStaffInvite(code)
+      navigate('/staff/join', { state: { resolved, code: code.trim() } })
+    } catch (err) {
+      setMessage(
+        err.status === 404 ? '초대 코드를 확인해 주세요. 코드가 틀렸거나 기간이 지났을 수 있어요.' : apiErrorMessage(err),
+      )
     } finally {
       setBusy(false)
     }
@@ -83,9 +77,8 @@ function EnterCode() {
 }
 
 function PendingHome() {
-  const { user, me, data } = useOutletContext()
+  const { mine, event, reload } = useOutletContext()
   const [checked, setChecked] = useState(false)
-  const event = eventOf(data)
 
   return (
     <>
@@ -98,7 +91,7 @@ function PendingHome() {
         <EventRow event={event} />
         <div className="mb-card-row">
           <small>
-            신청 역할 · <b>{STAFF_ROLE_LABEL[me.role]}</b>
+            신청 역할 · <b>{STAFF_ROLE_LABEL[mine.role] ?? mine.role}</b>
           </small>
           <span className="mb-chip">승인 대기</span>
         </div>
@@ -128,15 +121,16 @@ function PendingHome() {
       </ol>
       <p className="mb-muted sa-caption">승인되면 홈에서 행사와 업무를 확인할 수 있습니다.</p>
       {checked && <p className="op-banner">아직 검토 중이에요. 승인되면 이 화면이 바뀌어요.</p>}
-      <p className="mb-muted sa-caption">
-        ※ 서버가 연결되기 전에는 같은 브라우저의 주최자 화면(스태프 → 명단)에서 승인할 수 있어요.
-      </p>
       <MobileFooter>
-        <button type="button" className="mb-btn is-primary" onClick={() => setChecked(true)}>
+        <button
+          type="button"
+          className="mb-btn is-primary"
+          onClick={() => {
+            setChecked(true)
+            reload()
+          }}
+        >
           승인 상태 확인
-        </button>
-        <button type="button" className="sa-text-btn" onClick={() => cancelStaffJoin(user.id)}>
-          신청 취소하고 다시 입력하기
         </button>
       </MobileFooter>
     </>
@@ -144,7 +138,8 @@ function PendingHome() {
 }
 
 function RejectedHome() {
-  const { user } = useOutletContext()
+  const [again, setAgain] = useState(false)
+  if (again) return <EnterCode />
   return (
     <>
       <h1 className="mb-title">참여 신청이 거부됐어요</h1>
@@ -153,8 +148,8 @@ function RejectedHome() {
         <MIcon name="info" size={28} />
       </div>
       <MobileFooter>
-        <button type="button" className="mb-btn is-primary" onClick={() => cancelStaffJoin(user.id)}>
-          다시 신청하기
+        <button type="button" className="mb-btn is-primary" onClick={() => setAgain(true)}>
+          초대 코드 다시 입력하기
         </button>
       </MobileFooter>
     </>
@@ -178,19 +173,35 @@ export function EventRow({ event }) {
 
 function ApprovedHome() {
   const navigate = useNavigate()
-  const { me, data } = useOutletContext()
-  const event = eventOf(data)
-  const day = scheduleDay(data)
-  const shifts = myShifts(data, me.id, day)
-  const record = attendanceOn(data, me.id, day)
-  const duty = dutyOf(data, me)
-  const { data: notices } = useAsync(listStaffNotices, [])
+  const { mine, event } = useOutletContext()
+  const day = scheduleDay(event)
+  const { data: shifts } = useAsync(() => listMySchedule(mine.eventId, day), [mine.eventId, day])
+  const { data: attendance, reload: reloadAttendance } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
+  const { data: notices } = useAsync(() => listStaffNotices(mine.eventId), [mine.eventId])
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const record = attendance?.records.find((r) => r.date === day) ?? null
   const recent = [...(notices ?? [])].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 2)
+
+  const punch = async (call) => {
+    if (busy) return
+    setBusy(true)
+    setMessage('')
+    try {
+      await call(mine.eventId)
+      reloadAttendance()
+    } catch (err) {
+      setMessage(apiErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <>
       <h1 className="mb-title">홈</h1>
-      <p className="mb-sub">{me.name}님, 오늘도 함께해요.</p>
+      <p className="mb-sub">{mine.name || '스태프'}님, 오늘도 함께해요.</p>
 
       <div className="mb-card sa-event">
         <div className="sa-event-row">
@@ -200,12 +211,11 @@ function ApprovedHome() {
           <span>
             <span className="sa-event-title">
               <strong>{event.name}</strong>
-              <span className="mb-chip">행사 진행 중</span>
             </span>
             <small>{dateRange(event.startDate, event.endDate)}</small>
             <small className="sa-role">
-              {STAFF_ROLE_LABEL[me.role]}
-              {duty && ` · ${duty.name} 지원`}
+              {STAFF_ROLE_LABEL[mine.role] ?? mine.role}
+              {mine.dutyName && ` · ${mine.dutyName} 지원`}
             </small>
           </span>
         </div>
@@ -221,21 +231,22 @@ function ApprovedHome() {
         <div className="sa-clock">
           <span>
             <small>출근</small>
-            <b>{record?.in ?? '—'}</b>
+            <b>{record?.in || '—'}</b>
           </span>
           <span>
             <small>퇴근</small>
-            <b>{record?.out ?? '—'}</b>
+            <b>{record?.out || '—'}</b>
           </span>
         </div>
         <div className="mb-btn-row">
-          <button type="button" className="mb-btn is-primary" disabled={Boolean(record)} onClick={() => clockIn(me.id)}>
+          <button type="button" className="mb-btn is-primary" disabled={busy || !attendance || Boolean(record)} onClick={() => punch(clockIn)}>
             출근하기
           </button>
-          <button type="button" className="mb-btn is-outline" disabled={!record || Boolean(record.out)} onClick={() => clockOut(me.id)}>
+          <button type="button" className="mb-btn is-outline" disabled={busy || !record || Boolean(record.out)} onClick={() => punch(clockOut)}>
             퇴근하기
           </button>
         </div>
+        {message && <p className="mb-error">{message}</p>}
       </div>
 
       <div className="mb-card">
@@ -246,27 +257,24 @@ function ApprovedHome() {
           </button>
         </div>
         <p className="mb-muted">
-          {dayTitle(day)} · {shifts.length}개 일정
+          {dayTitle(day)} · {shifts?.length ?? 0}개 일정
         </p>
-        {shifts.length === 0 ? (
+        {shifts && shifts.length === 0 ? (
           <p className="mb-muted sa-caption">등록된 일정이 없어요. 주최측이 근무표에 배정하면 여기에 표시돼요.</p>
         ) : (
           <ul className="sa-today">
-            {shifts.map((s) => {
-              const d = data.duties.find((x) => x.id === s.dutyId)
-              return (
-                <li key={s.id}>
-                  <i />
-                  <span>
-                    <strong>{d?.name}</strong>
-                    <small>{d?.zone}</small>
-                  </span>
-                  <b>
-                    {s.start} – {s.end}
-                  </b>
-                </li>
-              )
-            })}
+            {(shifts ?? []).map((s) => (
+              <li key={s.id}>
+                <i />
+                <span>
+                  <strong>{s.dutyName}</strong>
+                  <small>{s.zone}</small>
+                </span>
+                <b>
+                  {s.start} – {s.end}
+                </b>
+              </li>
+            ))}
           </ul>
         )}
       </div>

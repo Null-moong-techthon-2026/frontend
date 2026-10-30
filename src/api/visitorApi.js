@@ -7,13 +7,13 @@
 //   GET /api/public/events/:id/map                  published map
 //   GET /api/public/events/:id/announcements[/:id]  notices for the public
 // Without a backend (docs/BACKEND_REQUESTS.md): operating hours, contact phone, directions, booth
-// photo / SNS / hours and sponsors. They are empty here, and filled with sample content in
+// SNS / hours and sponsors. They are empty here, and filled with sample content in
 // ?demo=1 preview mode (which shows the sample event instead of calling the backend at all).
 //
 // View models:
 //   event   { id, name, organizationName, startDate, endDate, venue, intro, imageUrl, hours, phone, directions }
 //   booth   { id, code, name, categoryCode, operationStatus, stockSummary, intro, hours, imageUrl,
-//             snsUrl, items:[{id,name,priceKrw,stockStatus}], placement: null | { pinId, xRatio, yRatio } }
+//             photos:[url], snsUrl, items:[{id,name,priceKrw,stockStatus}], placement: null | { pinId, xRatio, yRatio } }
 //   map     null | { image:{url,widthPx,heightPx}, pins:[{id,pinType,label,xRatio,yRatio,boothId}] }
 //   notice  { id, title, body, urgent, publishedAt, author, attachment, imageUrl }
 
@@ -39,6 +39,11 @@ const eventView = (raw) => ({
   directions: null,
 })
 
+// A booth's photos and cover: the field names are not typed in the OpenAPI document, so a few likely
+// spellings are accepted here - the one place to adjust.
+const photoUrls = (raw) =>
+  (raw.photos ?? raw.mediaAssets ?? []).map((p) => p.readUrl ?? p.url ?? p.imageUrl).filter(Boolean)
+
 const boothView = (raw) => ({
   id: raw.eventBoothId,
   code: raw.boothCode ?? '',
@@ -48,7 +53,8 @@ const boothView = (raw) => ({
   stockSummary: raw.stockSummary ?? null,
   intro: raw.description ?? '',
   hours: null,
-  imageUrl: null,
+  photos: photoUrls(raw),
+  imageUrl: photoUrls(raw)[0] ?? raw.imageUrl ?? raw.photoUrl ?? raw.coverUrl ?? raw.representativePhotoUrl ?? null,
   snsUrl: null,
   items: (raw.items ?? []).map((i) => ({
     id: i.id,

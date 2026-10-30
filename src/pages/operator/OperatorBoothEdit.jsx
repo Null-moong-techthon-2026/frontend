@@ -1,16 +1,15 @@
 import { useState } from 'react'
 import { Navigate, useNavigate, useOutletContext } from 'react-router-dom'
-import { addItem, changeBoothInfo, changeItem, getMyBoothDetail, removeItem, saveBoothHours } from '../../api/operatorApi'
+import { addBoothPhoto, addItem, changeBoothInfo, changeItem, getMyBoothDetail, removeItem, saveBoothPhotos } from '../../api/operatorApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { BoothThumb, LoadingBlock, MiniMap, OperationChip, StockChip } from '../../components/mobile/MobileUi'
 import { apiErrorMessage } from '../../constants/errors'
-import { boothSubtitle, hoursText, won } from '../../utils/mobileFormat'
+import { boothSubtitle, won } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './operator.css'
 
-const TIMES = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`)
-const DEFAULT_HOURS = { start: '11:00', end: '21:00' }
+const MAX_PHOTOS = 10
 
 // 06-2 내 부스 정보 수정 · 부스 운영자 (정보 수정 / 미리보기)
 export default function OperatorBoothEdit() {
@@ -25,9 +24,11 @@ export default function OperatorBoothEdit() {
       </>
     )
   }
-  // The editor starts from the loaded booth; key it so a reload starts it fresh.
-  return <Editor key={`${detail.id}:${detail.revision}`} detail={detail} setData={setData} />
+  // The editor starts from the loaded booth and keeps what is typed while photos / saves refresh `detail`.
+  return <Editor key={detail.id} detail={detail} setData={setData} />
 }
+
+const toRows = (items) => items.map((i) => ({ key: i.id, id: i.id, name: i.name, price: i.priceKrw == null ? '' : String(i.priceKrw) }))
 
 function BackRow() {
   const navigate = useNavigate()
@@ -42,10 +43,7 @@ function Editor({ detail, setData }) {
   const [tab, setTab] = useState('edit')
   const [name, setName] = useState(detail.name)
   const [intro, setIntro] = useState(detail.intro)
-  const [hours, setHours] = useState(detail.hours ?? DEFAULT_HOURS)
-  const [rows, setRows] = useState(() =>
-    detail.items.map((i) => ({ key: i.id, id: i.id, name: i.name, price: i.priceKrw == null ? '' : String(i.priceKrw) })),
-  )
+  const [rows, setRows] = useState(() => toRows(detail.items))
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [saved, setSaved] = useState(false)
@@ -55,7 +53,7 @@ function Editor({ detail, setData }) {
   const removeRow = (key) => setRows((list) => list.filter((r) => r.key !== key))
 
   const priceOk = (price) => /^\d*$/.test(price)
-  const invalid = !name.trim() || rows.some((r) => !r.name.trim() || !priceOk(r.price)) || hours.start >= hours.end
+  const invalid = !name.trim() || rows.some((r) => !r.name.trim() || !priceOk(r.price))
 
   const save = async () => {
     if (busy || invalid) return
@@ -68,7 +66,6 @@ function Editor({ detail, setData }) {
         current = await changeBoothInfo(detail, { name: name.trim(), description: intro })
       }
       const ref = { id: current.id, eventId: current.eventId, revision: current.revision }
-      saveBoothHours(detail.id, hours)
 
       // Menu: deleted rows, changed rows, new rows - one write each.
       const keep = new Set(rows.map((r) => r.id).filter(Boolean))
@@ -84,6 +81,7 @@ function Editor({ detail, setData }) {
         current = await addItem(ref, { name: row.name.trim(), priceKrw: row.price === '' ? null : Number(row.price) }, detail.items.length + index)
       }
       setData(current)
+      setRows(toRows(current.items))
       setSaved(true)
     } catch (err) {
       setMessage(apiErrorMessage(err))
@@ -98,8 +96,7 @@ function Editor({ detail, setData }) {
     categoryCode: detail.categoryCode,
     operationStatus: detail.operationStatus,
     intro,
-    hours,
-    imageUrl: null,
+    imageUrl: detail.photos[0]?.url ?? null,
   }
 
   return (
@@ -140,29 +137,6 @@ function Editor({ detail, setData }) {
             <textarea id="booth-intro" className="mb-textarea" value={intro} onChange={(e) => setIntro(e.target.value)} />
           </div>
           <div className="mb-field">
-            <span className="mb-label">운영 시간</span>
-            <div className="op-hours">
-              <label>
-                <small>시작</small>
-                <select className="mb-select" value={hours.start} onChange={(e) => setHours((h) => ({ ...h, start: e.target.value }))}>
-                  {TIMES.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <small>종료</small>
-                <select className="mb-select" value={hours.end} onChange={(e) => setHours((h) => ({ ...h, end: e.target.value }))}>
-                  {TIMES.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {hours.start >= hours.end && <p className="mb-error">종료 시간은 시작 시간보다 늦어야 해요.</p>}
-          </div>
-
-          <div className="mb-field">
             <span className="mb-label">메뉴 · 가격</span>
             {rows.map((row) => (
               <div key={row.key} className="op-menu-row">
@@ -178,13 +152,7 @@ function Editor({ detail, setData }) {
             </button>
           </div>
 
-          <div className="mb-card op-photo">
-            <MIcon name="upload" size={20} />
-            <span>
-              <strong>부스 사진</strong>
-              <small>사진 올리기는 준비 중이에요.</small>
-            </span>
-          </div>
+          <PhotoManager detail={detail} setData={setData} />
         </>
       ) : (
         <Preview booth={preview} rows={rows} />
@@ -212,10 +180,6 @@ function Preview({ booth, rows }) {
       </div>
       <p className="mb-muted">{boothSubtitle(booth)}</p>
       {booth.intro && <p className="vs-intro">{booth.intro}</p>}
-      <p className="vs-hours">
-        <MIcon name="clock" size={15} />
-        {hoursText(booth.hours)}
-      </p>
       <div className="mb-card">
         <h3>메뉴 · 상품</h3>
         {rows.length === 0 ? (
@@ -234,6 +198,64 @@ function Preview({ booth, rows }) {
           </ul>
         )}
       </div>
+    </div>
+  )
+}
+
+// 부스 사진: saved on the spot (not with 저장하기). The first photo is the cover.
+function PhotoManager({ detail, setData }) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const ref = { id: detail.id, eventId: detail.eventId, revision: detail.revision }
+  const ids = detail.photos.map((p) => p.id)
+
+  const run = async (call) => {
+    if (busy) return
+    setBusy(true)
+    setMessage('')
+    try {
+      setData(await call())
+    } catch (err) {
+      setMessage(apiErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const add = (e) => {
+    const file = e.target.files[0]
+    e.target.value = ''
+    if (file) run(() => addBoothPhoto(ref, file, ids))
+  }
+  const remove = (id) => run(() => saveBoothPhotos(ref, ids.filter((x) => x !== id)))
+  const makeCover = (id) => run(() => saveBoothPhotos(ref, [id, ...ids.filter((x) => x !== id)]))
+
+  return (
+    <div className="mb-card op-photos">
+      <div className="mb-card-row">
+        <h3>부스 사진</h3>
+        <small className="mb-muted">
+          {detail.photos.length}/{MAX_PHOTOS} · 첫 사진이 대표예요
+        </small>
+      </div>
+      <div className="op-photo-grid">
+        {detail.photos.map((p, i) => (
+          <div key={p.id} className="op-photo-item">
+            {p.url ? <img src={p.url} alt={`부스 사진 ${i + 1}`} /> : <span aria-hidden="true" />}
+            {i === 0 ? <b>대표</b> : <button type="button" className="op-photo-cover" disabled={busy} onClick={() => makeCover(p.id)}>대표로</button>}
+            <button type="button" className="op-photo-x" aria-label="사진 삭제" disabled={busy} onClick={() => remove(p.id)}>
+              ×
+            </button>
+          </div>
+        ))}
+        {detail.photos.length < MAX_PHOTOS && (
+          <label className={`op-photo-add${busy ? ' is-busy' : ''}`}>
+            <MIcon name="plus" size={20} />
+            <span>{busy ? '올리는 중…' : '사진 추가'}</span>
+            <input type="file" accept="image/png,image/jpeg" hidden disabled={busy} onChange={add} />
+          </label>
+        )}
+      </div>
+      {message && <p className="mb-error">{message}</p>}
     </div>
   )
 }

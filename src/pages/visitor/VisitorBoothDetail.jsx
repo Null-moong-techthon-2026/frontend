@@ -33,6 +33,13 @@ export default function VisitorBoothDetail() {
         부스 목록
       </button>
       <BoothThumb booth={booth} className="is-hero" />
+      {booth.photos?.length > 1 && (
+        <div className="vs-gallery">
+          {booth.photos.slice(1).map((url) => (
+            <img key={url} src={url} alt="" />
+          ))}
+        </div>
+      )}
       <div className="vs-title">
         <h1 className="mb-title is-sm">{booth.name}</h1>
         <OperationChip status={booth.operationStatus} />

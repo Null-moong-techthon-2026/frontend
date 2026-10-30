@@ -14,7 +14,6 @@ import OrganizerStatsPage from './pages/OrganizerStatsPage'
 import RecruitPage from './pages/RecruitPage'
 import NoticePage from './pages/NoticePage'
 import EventApplyPage from './pages/EventApplyPage'
-import AdminApplicationsPage from './pages/AdminApplicationsPage'
 import VisitorLayout from './pages/visitor/VisitorLayout'
 import VisitorHome from './pages/visitor/VisitorHome'
 import VisitorBooths from './pages/visitor/VisitorBooths'
@@ -43,7 +42,7 @@ import StaffHome from './pages/staff/StaffHome'
 import StaffJoin, { StaffInviteLanding } from './pages/staff/StaffJoin'
 import StaffSchedule from './pages/staff/StaffSchedule'
 import { StaffNoticeDetail, StaffNotices } from './pages/staff/StaffNotices'
-import { StaffProfile, StaffProfileEdit, StaffRecords } from './pages/staff/StaffProfile'
+import { StaffAccount, StaffProfile, StaffRecords } from './pages/staff/StaffProfile'
 import AuthProvider from './context/AuthProvider'
 import RequireAuth from './components/RequireAuth'
 import RequireEvent from './components/RequireEvent'
@@ -94,8 +93,6 @@ function App() {
         <Route path="info/notices/:noticeId" element={<VisitorNoticeDetail />} />
         <Route path="info/sponsors" element={<VisitorSponsors />} />
       </Route>
-      {/* Administrators review the 행사 개설 신청 here (the page itself checks the admin role). */}
-      <Route path="/admin/applications" element={<AdminApplicationsPage />} />
       {/* Everything under /organizer needs a logged-in user (RequireAuth sends others to /login)
           and an event (RequireEvent lets the organizer create the first one). */}
       <Route element={<RequireAuth />}>
@@ -111,7 +108,7 @@ function App() {
           <Route path="notices" element={<StaffNotices />} />
           <Route path="notices/:noticeId" element={<StaffNoticeDetail />} />
           <Route path="profile" element={<StaffProfile />} />
-          <Route path="profile/edit" element={<StaffProfileEdit />} />
+          <Route path="profile/account" element={<StaffAccount />} />
           <Route path="profile/records" element={<StaffRecords />} />
         </Route>
         <Route path="/operator" element={<OperatorLayout />}>
@@ -130,7 +127,7 @@ function App() {
           <Route path="profile/booth" element={<OperatorProfileBooth />} />
           <Route path="profile/account" element={<OperatorAccount />} />
         </Route>
-        {/* 행사 개설 신청: needs a login, but not an event (it is how an organizer gets one). */}
+        {/* 행사 개설: needs a login, but not an event (it is how an organizer gets one). */}
         <Route path="/apply" element={<EventApplyPage />} />
         <Route element={<RequireEvent />}>
           <Route path="/organizer/map" element={<OrganizerMapPage />} />

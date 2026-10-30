@@ -1,48 +1,16 @@
-import { useEffect, useState } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
-import { listMyEventApplications } from '../api/eventApplicationApi'
-import { listMyApplications, listMyBooths } from '../api/boothApi'
-import { APPLICATION_STATUS } from '../constants/eventApplication'
 import { apiErrorMessage } from '../constants/errors'
 import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
-import EventPendingPage from '../pages/EventPendingPage'
-import { ROLE, getRole, homePathFor } from '../utils/role'
+import { ROLE, homePathFor } from '../utils/role'
 import ScreenShell from './ScreenShell'
 
-// An account without an event is either a booth operator (their screens are not built yet) or an
-// organizer whose event has not been opened yet. The signup screen remembers operator accounts in
-// this browser; otherwise an account that already has booth applications or booths counts as an
-// operator. For an organizer it depends on the event-opening application (from the backend):
-//   never applied, or the last one was rejected -> the application form (/apply)
-//   waiting for the review, or approved but the event not visible yet -> the waiting page
-// (An organizer WITH an event never gets here: RequireEvent lets them into the dashboard. An
-// administrator approving an application opens the event for the applicant right away.)
+// An account without an event: a booth operator / staff account has its own screens; an organizer
+// opens an event first (the form at /apply).
 function NoEvent() {
   const { user } = useAuth()
-  const [kind, setKind] = useState(() => (getRole(user.id) === ROLE.ORGANIZER ? 'checking' : 'other-role'))
-
-  useEffect(() => {
-    if (kind !== 'checking') return
-    let alive = true
-    Promise.all([listMyApplications(), listMyBooths(), listMyEventApplications()])
-      .then(([boothApplications, booths, eventApplications]) => {
-        if (!alive) return
-        const latest = eventApplications.content[0]
-        if (!latest && (boothApplications.totalElements > 0 || booths.totalElements > 0)) return setKind('operator')
-        setKind(latest && latest.status !== APPLICATION_STATUS.REJECTED ? 'waiting' : 'apply')
-      })
-      .catch(() => alive && setKind('apply'))
-    return () => {
-      alive = false
-    }
-  }, [kind])
-
-  if (kind === 'checking') return null
-  // Operator and staff accounts have their own screens, not the organizer ones.
-  if (kind === 'operator') return <Navigate to="/operator/home" replace />
-  if (kind === 'other-role') return <Navigate to={homePathFor(user)} replace />
-  return kind === 'waiting' ? <EventPendingPage /> : <Navigate to="/apply" replace />
+  const other = user.role && user.role !== ROLE.ORGANIZER
+  return <Navigate to={other ? homePathFor(user) : '/apply'} replace />
 }
 
 // Wraps the organizer screens (inside RequireAuth): they all need an event to work on.

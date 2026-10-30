@@ -1,28 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import OrganizerLayout from '../components/OrganizerLayout'
-import { useEvent } from '../context/useEvent'
 import {
-  STAFF_INVITE,
-  STAFF_ROLE,
-  STAFF_ROLE_LABEL,
-  STAFF_STATUS,
-  STAFF_STATUS_LABEL,
-  staffDays,
-  setStaffEvent,
-  addDuty,
-  addShift,
-  approveMember,
-  assignDuty,
-  countBy,
-  dutyOf,
-  membersOfDuty,
-  rejectMember,
-  setShiftMembers,
-  updateMember,
-  useStaffData,
-} from '../dummy/staffStore'
-import { isDemo } from '../utils/demo'
+  createDuty,
+  createShift,
+  decideStaffMember,
+  getStaffInvitation,
+  issueStaffInvitation,
+  listDuties,
+  listShifts,
+  listStaff,
+  replaceShiftMembers,
+  revokeStaffInvitation,
+  updateStaffMember,
+} from '../api/staffApi'
+import OrganizerLayout from '../components/OrganizerLayout'
+import Toast from '../components/Toast'
+import { apiErrorMessage } from '../constants/errors'
+import { useEvent } from '../context/useEvent'
+import { STAFF_ROLE, STAFF_ROLE_LABEL, STAFF_STATUS, STAFF_STATUS_LABEL, countBy } from '../dummy/staffStore'
+import { eventDays } from '../utils/eventDays'
+import { useAsync } from '../utils/useAsync'
+import { useToast } from '../utils/useToast'
 import './staff.css'
 
 const TABS = [
@@ -36,6 +34,7 @@ const HOURS = Array.from({ length: 10 }, (_, i) => 11 + i) // 11:00 ... 20:00 co
 const GRID_START = 11 * 60
 const GRID_END = 21 * 60
 const TIMES = Array.from({ length: 24 }, (_, i) => `${String(11 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`)
+const LIVE_REFRESH_MS = 30000
 
 const minutes = (hm) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5))
 const dayLabel = (ymd) => {
@@ -49,19 +48,49 @@ const nowLabel = () => {
 }
 const statusTone = (status) =>
   status === STAFF_STATUS.PENDING ? 'is-lime' : status === STAFF_STATUS.WORKING ? 'is-green' : status === STAFF_STATUS.ABSENT ? 'is-red' : 'is-gray'
+const active = (members) => members.filter((x) => x.status !== STAFF_STATUS.PENDING && x.status !== STAFF_STATUS.REJECTED)
 
-// 스태프 (organizer, web): 명단 / 근무표 / 실시간 현황 + their popups. Data: dummy/staffStore.js.
+// 스태프 (organizer, web): 명단 / 근무표 / 실시간 현황 + their popups. Data: api/staffApi.js.
 export default function OrganizerStaffPage() {
-  const data = useStaffData()
   const { event } = useEvent()
-  // The staff data belongs to this event (its name and days show up in the staff app too).
-  useEffect(() => {
-    if (!isDemo()) setStaffEvent(event)
-  }, [event])
+  const { toast, notify } = useToast()
   const [params, setParams] = useSearchParams()
   const tab = TABS.some((t) => t[0] === params.get('tab')) ? params.get('tab') : 'roster'
   const setTab = (key) => setParams(key === 'roster' ? {} : { tab: key }, { replace: true })
   const [modal, setModal] = useState(null) // 'invite' | 'duty' | 'shift'
+  const [scheduleVersion, setScheduleVersion] = useState(0) // bumped to load the 근무표 again
+
+  const { data: board, error, reload } = useAsync(async () => {
+    const [staff, duties] = await Promise.all([listStaff(event.id), listDuties(event.id)])
+    return { members: staff.members, summary: staff.summary, duties }
+  }, [event.id])
+
+  // The live tab follows the field: it asks again every half minute.
+  useEffect(() => {
+    if (tab !== 'live') return undefined
+    const timer = setInterval(reload, LIVE_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [tab, reload])
+
+  // Runs a write call, then loads the page's data again; says so when the server refuses.
+  const act = async (call, doneMessage) => {
+    try {
+      const result = await call()
+      await reload()
+      if (doneMessage) notify(doneMessage)
+      return result ?? true
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+      return false
+    }
+  }
+  const actions = {
+    updateMember: (member, fields) => act(() => updateStaffMember(event.id, member, fields)),
+    decide: (member, decision) => act(() => decideStaffMember(event.id, member, decision), decision === 'APPROVED' ? '승인했어요.' : '거부했어요.'),
+    assignDuty: (member, dutyId) => act(() => updateStaffMember(event.id, member, { dutyId, status: STAFF_STATUS.WORKING }), '업무를 할당했어요.'),
+    addDuty: (fields) => act(() => createDuty(event.id, fields), '업무를 추가했어요.'),
+  }
+
   const current = TABS.find((t) => t[0] === tab)
 
   return (
@@ -71,20 +100,16 @@ export default function OrganizerStaffPage() {
       title="스태프"
       subtitle={current[2]}
       actions={
-        tab === 'schedule' ? null : (
+        tab === 'roster' ? (
           <>
-            {tab === 'roster' && (
-              <button type="button" className="om-btn om-btn-outline" onClick={() => setModal('duty')}>
-                업무 추가하기
-              </button>
-            )}
-            {tab === 'roster' && (
-              <button type="button" className="om-btn om-btn-primary" onClick={() => setModal('invite')}>
-                스태프 초대
-              </button>
-            )}
+            <button type="button" className="om-btn om-btn-outline" onClick={() => setModal('duty')}>
+              업무 추가하기
+            </button>
+            <button type="button" className="om-btn om-btn-primary" onClick={() => setModal('invite')}>
+              스태프 초대
+            </button>
           </>
-        )
+        ) : null
       }
     >
       <div className="sf">
@@ -95,13 +120,42 @@ export default function OrganizerStaffPage() {
             </button>
           ))}
         </div>
-        {tab === 'roster' && <Roster data={data} />}
-        {tab === 'schedule' && <Schedule data={data} onAdd={() => setModal('shift')} />}
-        {tab === 'live' && <Live data={data} />}
+        {!board ? (
+          <p className="sf-empty">
+            {error ? (
+              <>
+                {apiErrorMessage(error)}{' '}
+                <button type="button" className="sf-link" onClick={reload}>
+                  다시 시도
+                </button>
+              </>
+            ) : (
+              '불러오는 중…'
+            )}
+          </p>
+        ) : (
+          <>
+            {tab === 'roster' && <Roster board={board} actions={actions} />}
+            {tab === 'schedule' && <Schedule key={scheduleVersion} board={board} event={event} onAdd={() => setModal('shift')} notify={notify} />}
+            {tab === 'live' && <Live board={board} actions={actions} />}
+          </>
+        )}
       </div>
-      {modal === 'invite' && <InviteModal onClose={() => setModal(null)} />}
-      {modal === 'duty' && <DutyModal onClose={() => setModal(null)} />}
-      {modal === 'shift' && <ShiftModal data={data} onClose={() => setModal(null)} />}
+      {modal === 'invite' && <InviteModal eventId={event.id} onClose={() => setModal(null)} />}
+      {modal === 'duty' && <DutyModal actions={actions} onClose={() => setModal(null)} />}
+      {modal === 'shift' && board && (
+        <ShiftModal
+          board={board}
+          event={event}
+          onClose={() => setModal(null)}
+          onCreated={() => {
+            setScheduleVersion((v) => v + 1)
+            reload()
+          }}
+          notify={notify}
+        />
+      )}
+      <Toast toast={toast} />
     </OrganizerLayout>
   )
 }
@@ -133,14 +187,14 @@ function Stat({ label, value, tone = '' }) {
 }
 
 // ---------------------------------------------------------------- 명단
-function Roster({ data }) {
+function Roster({ board, actions }) {
   const [q, setQ] = useState('')
   const [role, setRole] = useState('')
   const [status, setStatus] = useState('')
   const [page, setPage] = useState(0)
   const [selectedId, setSelectedId] = useState(null)
 
-  const people = data.members.filter((x) => x.status !== STAFF_STATUS.REJECTED)
+  const people = board.members.filter((x) => x.status !== STAFF_STATUS.REJECTED)
   const roles = countBy(people, 'role')
   const pending = people.filter((x) => x.status === STAFF_STATUS.PENDING).length
   const needle = q.trim().toLowerCase()
@@ -149,7 +203,8 @@ function Roster({ data }) {
   )
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const shown = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  const selected = data.members.find((x) => x.id === selectedId) ?? people[0]
+  const selected = board.members.find((x) => x.id === selectedId) ?? people[0]
+  const dutyName = (id) => board.duties.find((d) => d.id === id)?.name
 
   return (
     <>
@@ -201,12 +256,12 @@ function Roster({ data }) {
             </thead>
             <tbody>
               {shown.map((x) => (
-                <tr key={x.id} className={x.id === selectedId ? 'is-selected' : ''}>
+                <tr key={x.id} className={x.id === selected?.id ? 'is-selected' : ''}>
                   <td>
                     <strong>{x.name}</strong>
                   </td>
                   <td>
-                    <select className="sf-cell-select" value={x.role} onChange={(e) => updateMember(x.id, { role: e.target.value })} aria-label={`${x.name} 역할`}>
+                    <select className="sf-cell-select" value={x.role} onChange={(e) => actions.updateMember(x, { role: e.target.value })} aria-label={`${x.name} 역할`}>
                       {Object.values(STAFF_ROLE).map((r) => (
                         <option key={r} value={r}>
                           {STAFF_ROLE_LABEL[r]}
@@ -215,9 +270,9 @@ function Roster({ data }) {
                     </select>
                   </td>
                   <td>
-                    <select className="sf-cell-select" value={x.dutyId ?? ''} onChange={(e) => (e.target.value ? assignDuty(x.id, e.target.value) : updateMember(x.id, { dutyId: null }))} aria-label={`${x.name} 업무`}>
+                    <select className="sf-cell-select" value={x.dutyId ?? ''} onChange={(e) => actions.updateMember(x, { dutyId: e.target.value || null })} aria-label={`${x.name} 업무`}>
                       <option value="">미할당</option>
-                      {data.duties.map((d) => (
+                      {board.duties.map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.name}
                         </option>
@@ -226,7 +281,7 @@ function Roster({ data }) {
                   </td>
                   <td>{x.phone}</td>
                   <td>
-                    <select className={`sf-chip-select ${statusTone(x.status)}`} value={x.status} onChange={(e) => updateMember(x.id, { status: e.target.value })} aria-label={`${x.name} 상태`}>
+                    <select className={`sf-chip-select ${statusTone(x.status)}`} value={x.status} onChange={(e) => actions.updateMember(x, { status: e.target.value })} aria-label={`${x.name} 상태`}>
                       {Object.values(STAFF_STATUS).filter((s) => s !== STAFF_STATUS.REJECTED).map((s) => (
                         <option key={s} value={s}>
                           {STAFF_STATUS_LABEL[s]}
@@ -244,7 +299,7 @@ function Roster({ data }) {
               {shown.length === 0 && (
                 <tr>
                   <td colSpan={6} className="sf-empty">
-                    조건에 맞는 인원이 없어요.
+                    {people.length === 0 ? '아직 스태프가 없어요. 스태프 초대로 초대 코드를 보내 보세요.' : '조건에 맞는 인원이 없어요.'}
                   </td>
                 </tr>
               )}
@@ -269,7 +324,7 @@ function Roster({ data }) {
           <small className="sf-hint">역할 · 업무 · 상태를 눌러 변경할 수 있어요.</small>
         </section>
         {selected ? (
-          <Detail key={selected.id} member={selected} data={data} />
+          <Detail key={`${selected.id}:${selected.revision}`} member={selected} dutyName={dutyName(selected.dutyId)} board={board} actions={actions} />
         ) : (
           <aside className="sf-card sf-empty">
             아직 스태프가 없어요.
@@ -282,10 +337,8 @@ function Roster({ data }) {
   )
 }
 
-function Detail({ member, data }) {
+function Detail({ member, dutyName, board, actions }) {
   const [memo, setMemo] = useState(member.memo)
-  const duty = dutyOf(data, member)
-  const shifts = data.shifts.filter((s) => s.memberIds.includes(member.id))
   const pending = member.status === STAFF_STATUS.PENDING
 
   return (
@@ -302,12 +355,12 @@ function Detail({ member, data }) {
         <dt>연락처</dt>
         <dd>{member.phone}</dd>
         <dt>이메일</dt>
-        <dd>{member.email}</dd>
+        <dd>{member.email || '-'}</dd>
         <dt>소속</dt>
-        <dd>{member.affiliation}</dd>
+        <dd>{member.affiliation || '-'}</dd>
         <dt>역할</dt>
         <dd>
-          <select className="sf-select" value={member.role} onChange={(e) => updateMember(member.id, { role: e.target.value })}>
+          <select className="sf-select" value={member.role} onChange={(e) => actions.updateMember(member, { role: e.target.value })}>
             {Object.values(STAFF_ROLE).map((r) => (
               <option key={r} value={r}>
                 {STAFF_ROLE_LABEL[r]}
@@ -317,9 +370,9 @@ function Detail({ member, data }) {
         </dd>
         <dt>업무</dt>
         <dd>
-          <select className="sf-select" value={member.dutyId ?? ''} onChange={(e) => (e.target.value ? assignDuty(member.id, e.target.value) : updateMember(member.id, { dutyId: null }))}>
+          <select className="sf-select" value={member.dutyId ?? ''} onChange={(e) => actions.updateMember(member, { dutyId: e.target.value || null })}>
             <option value="">미할당</option>
-            {data.duties.map((d) => (
+            {board.duties.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
               </option>
@@ -328,7 +381,7 @@ function Detail({ member, data }) {
         </dd>
         <dt>상태</dt>
         <dd>
-          <select className={`sf-select ${statusTone(member.status)}`} value={member.status} onChange={(e) => updateMember(member.id, { status: e.target.value })}>
+          <select className={`sf-select ${statusTone(member.status)}`} value={member.status} onChange={(e) => actions.updateMember(member, { status: e.target.value })}>
             {Object.values(STAFF_STATUS).filter((s) => s !== STAFF_STATUS.REJECTED).map((s) => (
               <option key={s} value={s}>
                 {STAFF_STATUS_LABEL[s]}
@@ -339,21 +392,19 @@ function Detail({ member, data }) {
       </dl>
       <h3 className="sf-h3">배정 · 근무 요약</h3>
       <dl className="sf-kv">
-        <dt>근무 시간</dt>
-        <dd>{duty ? `${duty.start} – ${duty.end}` : '미등록'}</dd>
+        <dt>업무</dt>
+        <dd>{dutyName ?? '미배정'}</dd>
         <dt>부스 할당</dt>
         <dd>미할당</dd>
-        <dt>근무표</dt>
-        <dd>{shifts.length === 0 ? '등록된 근무표가 없습니다.' : `${shifts.length}건 배정됨`}</dd>
       </dl>
       <h3 className="sf-h3">주최측 참고 메모</h3>
       <small className="sf-hint">주최측 계정만 열람할 수 있습니다.</small>
-      <textarea className="sf-textarea" placeholder="운영 참고 사항을 적어 두세요." value={memo} onChange={(e) => setMemo(e.target.value)} onBlur={() => memo !== member.memo && updateMember(member.id, { memo })} />
+      <textarea className="sf-textarea" placeholder="운영 참고 사항을 적어 두세요." value={memo} onChange={(e) => setMemo(e.target.value)} onBlur={() => memo !== member.memo && actions.updateMember(member, { memo })} />
       <div className="sf-actions">
-        <button type="button" className="sf-btn is-danger" disabled={!pending} onClick={() => rejectMember(member.id)}>
+        <button type="button" className="sf-btn is-danger" disabled={!pending} onClick={() => actions.decide(member, 'REJECTED')}>
           거부
         </button>
-        <button type="button" className="sf-btn is-primary" disabled={!pending} onClick={() => approveMember(member.id)}>
+        <button type="button" className="sf-btn is-primary" disabled={!pending} onClick={() => actions.decide(member, 'APPROVED')}>
           승인
         </button>
       </div>
@@ -361,8 +412,12 @@ function Detail({ member, data }) {
   )
 }
 
-function InviteModal({ onClose }) {
+function InviteModal({ eventId, onClose }) {
+  const { data: invitation, loading, error, reload } = useAsync(() => getStaffInvitation(eventId), [eventId])
   const [copied, setCopied] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+
   const copy = async (key, text) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -372,28 +427,67 @@ function InviteModal({ onClose }) {
     setCopied(key)
     setTimeout(() => setCopied(''), 1500)
   }
+  const change = async (call, ask) => {
+    if (busy || (ask && !window.confirm(ask))) return
+    setBusy(true)
+    setMessage('')
+    try {
+      await call()
+      reload()
+    } catch (err) {
+      setMessage(apiErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Modal title="스태프 초대" subtitle="초대 코드를 입력하거나 링크를 통해 스태프 참여를 신청할 수 있습니다." onClose={onClose}>
-      <span className="sf-label">초대 코드</span>
-      <div className="sf-copy">
-        <strong>{STAFF_INVITE.code}</strong>
-        <button type="button" className="sf-btn" onClick={() => copy('code', STAFF_INVITE.code)}>
-          {copied === 'code' ? '복사됨' : '복사하기'}
-        </button>
-      </div>
-      <span className="sf-label">초대 링크</span>
-      <div className="sf-copy">
-        <span>{STAFF_INVITE.url}</span>
-        <button type="button" className="sf-btn" onClick={() => copy('url', `${window.location.origin}/invite/staff/${STAFF_INVITE.token}`)}>
-          {copied === 'url' ? '복사됨' : '복사하기'}
-        </button>
-      </div>
-      <p className="sf-note">
-        신청한 스태프는 승인 대기 상태로 등록됩니다.
-        <br />
-        명단에서 내용을 확인하고 승인 또는 거부해 주세요.
-      </p>
-      <p className="sf-note">※ 초대 코드와 링크는 아직 서버에서 발급하지 않는 예시예요.</p>
+      {loading && !invitation ? (
+        <p className="sf-empty">불러오는 중…</p>
+      ) : error ? (
+        <p className="sf-empty">{apiErrorMessage(error)}</p>
+      ) : !invitation ? (
+        <>
+          <p className="sf-note">아직 발급한 초대가 없어요. 발급하면 코드와 링크를 스태프에게 보낼 수 있어요.</p>
+          <div className="sf-actions is-end">
+            <button type="button" className="sf-btn is-primary" disabled={busy} onClick={() => change(() => issueStaffInvitation(eventId))}>
+              초대 코드 발급
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <span className="sf-label">초대 코드</span>
+          <div className="sf-copy">
+            <strong>{invitation.code}</strong>
+            <button type="button" className="sf-btn" onClick={() => copy('code', invitation.code)}>
+              {copied === 'code' ? '복사됨' : '복사하기'}
+            </button>
+          </div>
+          <span className="sf-label">초대 링크</span>
+          <div className="sf-copy">
+            <span>{(invitation.inviteUrl ?? '').replace(/^https?:\/\//, '')}</span>
+            <button type="button" className="sf-btn" onClick={() => copy('url', invitation.inviteUrl)}>
+              {copied === 'url' ? '복사됨' : '복사하기'}
+            </button>
+          </div>
+          <p className="sf-note">
+            신청한 스태프는 승인 대기 상태로 등록됩니다.
+            <br />
+            명단에서 내용을 확인하고 승인 또는 거부해 주세요.
+          </p>
+          <div className="sf-actions">
+            <button type="button" className="sf-btn" disabled={busy} onClick={() => change(() => issueStaffInvitation(eventId), '새로 발급하면 이전 코드와 링크는 쓸 수 없게 돼요. 발급할까요?')}>
+              다시 발급
+            </button>
+            <button type="button" className="sf-btn is-danger" disabled={busy} onClick={() => change(() => revokeStaffInvitation(eventId), '초대를 종료하면 지금의 코드와 링크를 쓸 수 없게 돼요. 종료할까요?')}>
+              초대 종료
+            </button>
+          </div>
+        </>
+      )}
+      {message && <p className="sf-note" role="alert">{message}</p>}
       <div className="sf-actions is-end">
         <button type="button" className="sf-btn" onClick={onClose}>
           닫기
@@ -403,34 +497,17 @@ function InviteModal({ onClose }) {
   )
 }
 
-function DutyModal({ onClose }) {
-  const [form, setForm] = useState({ name: '', zone: '', start: '14:00', end: '16:00' })
+function DutyModal({ actions, onClose }) {
+  const [form, setForm] = useState({ name: '', zone: '' })
+  const [busy, setBusy] = useState(false)
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
-  const ok = form.name.trim() && form.zone.trim() && form.start < form.end
+  const ok = form.name.trim() && form.zone.trim()
   return (
-    <Modal title="업무 추가하기" subtitle="구역과 업무를 정하고 근무 시간을 입력하세요." onClose={onClose}>
+    <Modal title="업무 추가하기" subtitle="구역과 업무 이름을 입력하세요. 근무 시간은 근무표에서 정해요." onClose={onClose}>
       <label className="sf-label">업무 이름</label>
-      <input className="sf-input" placeholder="예: 행사 안내" value={form.name} onChange={set('name')} />
+      <input className="sf-input" placeholder="예: 행사 안내" value={form.name} onChange={set('name')} maxLength={100} />
       <label className="sf-label">구역</label>
-      <input className="sf-input" placeholder="예: 운영본부" value={form.zone} onChange={set('zone')} />
-      <div className="sf-two">
-        <div>
-          <label className="sf-label">시작 시간</label>
-          <select className="sf-select" value={form.start} onChange={set('start')}>
-            {TIMES.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="sf-label">종료 시간</label>
-          <select className="sf-select" value={form.end} onChange={set('end')}>
-            {TIMES.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <input className="sf-input" placeholder="예: 운영본부" value={form.zone} onChange={set('zone')} maxLength={100} />
       <div className="sf-actions">
         <button type="button" className="sf-btn" onClick={onClose}>
           취소
@@ -438,10 +515,11 @@ function DutyModal({ onClose }) {
         <button
           type="button"
           className="sf-btn is-primary"
-          disabled={!ok}
-          onClick={() => {
-            addDuty({ name: form.name.trim(), zone: form.zone.trim(), start: form.start, end: form.end })
-            onClose()
+          disabled={!ok || busy}
+          onClick={async () => {
+            setBusy(true)
+            if (await actions.addDuty({ name: form.name.trim(), zone: form.zone.trim() })) onClose()
+            else setBusy(false)
           }}
         >
           등록하기
@@ -452,16 +530,19 @@ function DutyModal({ onClose }) {
 }
 
 // ---------------------------------------------------------------- 근무표
-function Schedule({ data, onAdd }) {
-  const days = staffDays(data)
+function Schedule({ board, event, onAdd, notify }) {
+  const days = useMemo(() => eventDays(event), [event])
   const [day, setDay] = useState(days[0])
   const [selectedId, setSelectedId] = useState(null)
-  const rows = data.shifts.filter((s) => s.date === day)
-  const selected = data.shifts.find((s) => s.id === selectedId) ?? rows[1] ?? rows[0] ?? null
+  const { data: rows, error, reload } = useAsync(() => listShifts(event.id, day), [event.id, day])
+  const shifts = rows ?? []
+  const selected = shifts.find((s) => s.id === selectedId) ?? shifts[0] ?? null
   const dayIndex = days.indexOf(day)
 
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
   const showNow = nowMin >= GRID_START && nowMin <= GRID_END
+  const dutyOf = (id) => board.duties.find((d) => d.id === id)
+  const nameOf = (id) => board.members.find((x) => x.id === id)?.name
 
   return (
     <div className="sf-split">
@@ -490,7 +571,7 @@ function Schedule({ data, onAdd }) {
           <h2>
             {Number(day.slice(5, 7))}월 {Number(day.slice(8, 10))}일 근무표
           </h2>
-          <span className="sf-pill is-green">{rows.length}개 구역 · 업무</span>
+          <span className="sf-pill is-green">{shifts.length}개 구역 · 업무</span>
           {showNow && <span className="sf-now-label">현재 {String(Math.floor(nowMin / 60)).padStart(2, '0')}:{String(nowMin % 60).padStart(2, '0')}</span>}
         </div>
         <div className="sf-grid">
@@ -502,9 +583,9 @@ function Schedule({ data, onAdd }) {
               ))}
             </div>
           </div>
-          {rows.map((s) => {
-            const duty = data.duties.find((d) => d.id === s.dutyId)
-            const people = s.memberIds.map((id) => data.members.find((x) => x.id === id)?.name).filter(Boolean)
+          {shifts.map((s) => {
+            const duty = dutyOf(s.dutyId)
+            const people = s.memberIds.map(nameOf).filter(Boolean)
             const left = ((Math.max(minutes(s.start), GRID_START) - GRID_START) / (GRID_END - GRID_START)) * 100
             const width = ((Math.min(minutes(s.end), GRID_END) - Math.max(minutes(s.start), GRID_START)) / (GRID_END - GRID_START)) * 100
             return (
@@ -512,7 +593,7 @@ function Schedule({ data, onAdd }) {
                 <div className="sf-grid-label">
                   <small>{duty?.zone}</small>
                   <strong>{duty?.name}</strong>
-                  <small>{s.roles.map((r) => STAFF_ROLE_LABEL[r]).join(' · ')}</small>
+                  <small>{s.roles.map((r) => STAFF_ROLE_LABEL[r] ?? r).join(' · ')}</small>
                 </div>
                 <div className="sf-grid-track">
                   <button
@@ -531,31 +612,44 @@ function Schedule({ data, onAdd }) {
               </div>
             )
           })}
-          {rows.length === 0 && <p className="sf-empty">이 날짜에는 등록된 근무가 없어요. 시간표 배치하기로 추가해 보세요.</p>}
+          {!rows && <p className="sf-empty">{error ? apiErrorMessage(error) : '불러오는 중…'}</p>}
+          {rows && shifts.length === 0 && <p className="sf-empty">이 날짜에는 등록된 근무가 없어요. 시간표 배치하기로 추가해 보세요.</p>}
         </div>
         <small className="sf-hint">미배정 시간은 휴식으로 표시 · 현재 시각선은 10분 단위로 이동</small>
       </section>
-      {selected ? <ShiftPanel key={selected.id} shift={selected} data={data} /> : <aside className="sf-card sf-empty">근무를 선택하세요.</aside>}
+      {selected ? (
+        <ShiftPanel key={`${selected.id}:${selected.revision}`} shift={selected} board={board} eventId={event.id} onSaved={reload} notify={notify} />
+      ) : (
+        <aside className="sf-card sf-empty">근무를 선택하세요.</aside>
+      )}
     </div>
   )
 }
 
-function ShiftPanel({ shift, data }) {
-  const duty = data.duties.find((d) => d.id === shift.dutyId)
+function ShiftPanel({ shift, board, eventId, onSaved, notify }) {
+  const duty = board.duties.find((d) => d.id === shift.dutyId)
   const [q, setQ] = useState('')
   const [role, setRole] = useState('')
   const [chosen, setChosen] = useState(shift.memberIds)
-  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
 
   const needle = q.trim().toLowerCase()
-  const list = data.members
-    .filter((x) => x.status !== STAFF_STATUS.PENDING && x.status !== STAFF_STATUS.REJECTED)
+  const list = active(board.members)
     .filter((x) => (!role || x.role === role) && (!needle || x.name.toLowerCase().includes(needle) || x.phone.includes(needle)))
     .sort((a, b) => Number(chosen.includes(b.id)) - Number(chosen.includes(a.id)))
     .slice(0, 12)
-  const toggle = (id) => {
-    setSaved(false)
-    setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]))
+  const toggle = (id) => setChosen((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]))
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      await replaceShiftMembers(eventId, shift, chosen)
+      notify('배정을 저장했어요.')
+      onSaved()
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+      setBusy(false)
+    }
   }
 
   return (
@@ -566,7 +660,7 @@ function ShiftPanel({ shift, data }) {
         {duty?.zone} · {shift.start} – {shift.end}
       </p>
       <p className="sf-meta">
-        역할: {shift.roles.map((r) => STAFF_ROLE_LABEL[r]).join(' · ')} | 배정 {chosen.length}명
+        역할: {shift.roles.map((r) => STAFF_ROLE_LABEL[r] ?? r).join(' · ')} | 배정 {chosen.length}명
       </p>
       <input className="sf-input" placeholder="⌕ 이름 · 연락처 검색" value={q} onChange={(e) => setQ(e.target.value)} />
       <select className="sf-select" value={role} onChange={(e) => setRole(e.target.value)} aria-label="역할">
@@ -590,35 +684,37 @@ function ShiftPanel({ shift, data }) {
             </label>
           </li>
         ))}
+        {list.length === 0 && <li className="sf-empty">배정할 수 있는 스태프가 없어요.</li>}
       </ul>
       <small className="sf-hint">선택한 {chosen.length}명이 해당 근무에 배정됩니다.</small>
-      <button
-        type="button"
-        className="sf-btn is-primary is-block"
-        onClick={() => {
-          setShiftMembers(shift.id, chosen)
-          setSaved(true)
-        }}
-      >
-        {saved ? '저장했어요' : '배정 저장하기'}
+      <button type="button" className="sf-btn is-primary is-block" disabled={busy} onClick={save}>
+        배정 저장하기
       </button>
     </aside>
   )
 }
 
-function ShiftModal({ data, onClose }) {
-  const days = staffDays(data)
+function ShiftModal({ board, event, onClose, onCreated, notify }) {
+  const days = useMemo(() => eventDays(event), [event])
   const [mode, setMode] = useState('new')
-  const [form, setForm] = useState({ date: days[0], start: '14:00', end: '16:00', zone: '', name: '', dutyId: data.duties[0]?.id ?? '', roles: [STAFF_ROLE.STAFF, STAFF_ROLE.LABOR] })
+  const [form, setForm] = useState({ date: days[0], start: '14:00', end: '16:00', zone: '', name: '', dutyId: board.duties[0]?.id ?? '', roles: [STAFF_ROLE.STAFF, STAFF_ROLE.LABOR] })
+  const [busy, setBusy] = useState(false)
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
   const toggleRole = (r) => setForm((f) => ({ ...f, roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r] }))
   const ok = form.start < form.end && form.roles.length > 0 && (mode === 'existing' ? form.dutyId : form.zone.trim() && form.name.trim())
 
-  const submit = () => {
-    const dutyId =
-      mode === 'existing' ? form.dutyId : addDuty({ name: form.name.trim(), zone: form.zone.trim(), start: form.start, end: form.end }).id
-    addShift({ date: form.date, dutyId, start: form.start, end: form.end, roles: form.roles })
-    onClose()
+  const submit = async () => {
+    setBusy(true)
+    try {
+      const dutyId = mode === 'existing' ? form.dutyId : (await createDuty(event.id, { zone: form.zone.trim(), name: form.name.trim() })).id
+      await createShift(event.id, { date: form.date, dutyId, start: form.start, end: form.end, roles: form.roles })
+      notify('근무를 등록했어요.')
+      onCreated()
+      onClose()
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+      setBusy(false)
+    }
   }
 
   return (
@@ -627,7 +723,7 @@ function ShiftModal({ data, onClose }) {
         <button type="button" className={mode === 'new' ? 'is-active' : ''} onClick={() => setMode('new')}>
           새 행 추가
         </button>
-        <button type="button" className={mode === 'existing' ? 'is-active' : ''} disabled={data.duties.length === 0} onClick={() => setMode('existing')}>
+        <button type="button" className={mode === 'existing' ? 'is-active' : ''} disabled={board.duties.length === 0} onClick={() => setMode('existing')}>
           기존 행에 시간 추가
         </button>
       </div>
@@ -668,7 +764,7 @@ function ShiftModal({ data, onClose }) {
         <>
           <label className="sf-label">기존 행 (구역 · 업무)</label>
           <select className="sf-select" value={form.dutyId} onChange={set('dutyId')}>
-            {data.duties.map((d) => (
+            {board.duties.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.zone} · {d.name}
               </option>
@@ -685,12 +781,12 @@ function ShiftModal({ data, onClose }) {
           </label>
         ))}
       </div>
-      <p className="sf-note">기존 행을 선택하면 구역 · 업무 · 역할을 그대로 사용합니다.</p>
+      <p className="sf-note">기존 행을 선택하면 구역 · 업무를 그대로 사용합니다.</p>
       <div className="sf-actions">
         <button type="button" className="sf-btn" onClick={onClose}>
           취소
         </button>
-        <button type="button" className="sf-btn is-primary" disabled={!ok} onClick={submit}>
+        <button type="button" className="sf-btn is-primary" disabled={!ok || busy} onClick={submit}>
           등록하기
         </button>
       </div>
@@ -699,20 +795,21 @@ function ShiftModal({ data, onClose }) {
 }
 
 // ---------------------------------------------------------------- 실시간 현황
-function Live({ data }) {
+function Live({ board, actions }) {
   const [zone, setZone] = useState('')
   const [dutyId, setDutyId] = useState('')
   const [detailDuty, setDetailDuty] = useState(null)
   const [assignFor, setAssignFor] = useState(null)
   const [openGroup, setOpenGroup] = useState(null)
 
-  const active = data.members.filter((x) => x.status !== STAFF_STATUS.PENDING && x.status !== STAFF_STATUS.REJECTED)
-  const counts = countBy(active, 'status')
-  const zones = useMemo(() => [...new Set(data.duties.map((d) => d.zone))], [data.duties])
-  const duties = data.duties.filter((d) => (!zone || d.zone === zone) && (!dutyId || d.id === dutyId))
+  const people = active(board.members)
+  const counts = countBy(people, 'status')
+  const zones = useMemo(() => [...new Set(board.duties.map((d) => d.zone))], [board.duties])
+  const duties = board.duties.filter((d) => (!zone || d.zone === zone) && (!dutyId || d.id === dutyId))
+  const working = (id) => people.filter((x) => x.dutyId === id && x.status === STAFF_STATUS.WORKING)
   const groups = [STAFF_STATUS.BREAK, STAFF_STATUS.ABSENT, STAFF_STATUS.WAITING].map((s) => ({
     status: s,
-    people: active.filter((x) => x.status === s),
+    people: people.filter((x) => x.status === s),
   }))
 
   return (
@@ -734,7 +831,7 @@ function Live({ data }) {
             </select>
             <select className="sf-select" value={dutyId} onChange={(e) => setDutyId(e.target.value)} aria-label="업무">
               <option value="">전체 업무</option>
-              {data.duties.map((d) => (
+              {board.duties.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
                 </option>
@@ -745,58 +842,43 @@ function Live({ data }) {
           </div>
           <div className="sf-duties">
             {duties.map((d) => {
-              const people = membersOfDuty(data, d.id).filter((x) => x.status === STAFF_STATUS.WORKING)
+              const here = working(d.id)
               return (
                 <section key={d.id} className="sf-card sf-duty">
                   <div className="sf-card-head">
                     <h2>{d.name}</h2>
-                    <span className="sf-pill is-green">{people.length}명</span>
+                    <span className="sf-pill is-green">{here.length}명</span>
                   </div>
-                  <p className="sf-meta">
-                    {d.zone} · {d.start} – {d.end}
-                  </p>
-                  {people.slice(0, 2).map((x) => (
+                  <p className="sf-meta">{d.zone}</p>
+                  {here.slice(0, 2).map((x) => (
                     <div key={x.id} className="sf-person">
                       <strong>{x.name}</strong>
                       <em>{STAFF_ROLE_LABEL[x.role]}</em>
                       <small>{x.phone}</small>
                     </div>
                   ))}
-                  {people.length === 0 && <p className="sf-empty">근무 중인 인원이 없어요.</p>}
+                  {here.length === 0 && <p className="sf-empty">근무 중인 인원이 없어요.</p>}
                   <button type="button" className="sf-btn is-block" onClick={() => setDetailDuty(d)}>
-                    전체 {people.length}명 상세 보기
+                    전체 {here.length}명 상세 보기
                   </button>
                 </section>
               )
             })}
+            {duties.length === 0 && <p className="sf-empty">등록된 업무가 없어요. 명단에서 업무를 추가해 주세요.</p>}
           </div>
-          <div className="sf-foot">
-            <span className="sf-pager">
-              <button type="button" disabled aria-label="이전">
-                ‹
-              </button>
-              <button type="button" className="is-active">
-                1
-              </button>
-              <button type="button" disabled aria-label="다음">
-                ›
-              </button>
-            </span>
-            <small>업무가 늘어나면 6개씩 다음 페이지에서 확인합니다.</small>
-          </div>
-          <small className="sf-hint">근무표의 시간대가 되면 업무와 카드 배정이 자동으로 반영됩니다.</small>
+          <small className="sf-hint">30초마다 자동으로 새로 불러와요.</small>
         </div>
 
         <aside className="sf-card">
           <h2>미배정 인원</h2>
           <p className="sf-meta">휴식 · 미출근 · 대기 인원을 확인합니다.</p>
-          {groups.map(({ status, people }) => (
+          {groups.map(({ status, people: list }) => (
             <div key={status} className="sf-group">
               <div className="sf-group-head">
                 <strong>{STAFF_STATUS_LABEL[status]}</strong>
-                <span className={`sf-pill ${statusTone(status)}`}>{people.length}명</span>
+                <span className={`sf-pill ${statusTone(status)}`}>{list.length}명</span>
               </div>
-              {(openGroup === status ? people : people.slice(0, 2)).map((x) => (
+              {(openGroup === status ? list : list.slice(0, 2)).map((x) => (
                 <div key={x.id} className="sf-unassigned">
                   <span>
                     <strong>{x.name}</strong> <em>{STAFF_ROLE_LABEL[x.role]}</em>
@@ -807,28 +889,27 @@ function Live({ data }) {
                   </button>
                 </div>
               ))}
-              {people.length > 2 && (
+              {list.length > 2 && (
                 <button type="button" className="sf-link" onClick={() => setOpenGroup(openGroup === status ? null : status)}>
-                  {openGroup === status ? '접기' : `전체 ${people.length}명 보기`} ›
+                  {openGroup === status ? '접기' : `전체 ${list.length}명 보기`} ›
                 </button>
               )}
             </div>
           ))}
         </aside>
       </div>
-      {detailDuty && <DutyDetailModal duty={detailDuty} data={data} onClose={() => setDetailDuty(null)} />}
-      {assignFor && <AssignModal member={assignFor} data={data} onClose={() => setAssignFor(null)} />}
+      {detailDuty && <DutyDetailModal duty={detailDuty} people={working(detailDuty.id)} onClose={() => setDetailDuty(null)} />}
+      {assignFor && <AssignModal member={assignFor} board={board} actions={actions} onClose={() => setAssignFor(null)} />}
     </>
   )
 }
 
-function DutyDetailModal({ duty, data, onClose }) {
+function DutyDetailModal({ duty, people, onClose }) {
   const [q, setQ] = useState('')
-  const people = membersOfDuty(data, duty.id).filter((x) => x.status === STAFF_STATUS.WORKING)
   const needle = q.trim().toLowerCase()
   const shown = people.filter((x) => !needle || x.name.toLowerCase().includes(needle) || x.phone.includes(needle))
   return (
-    <Modal title={`${duty.name} · 배정 인원`} subtitle={`${duty.zone} · ${duty.start} – ${duty.end} · 근무 중 ${people.length}명`} onClose={onClose}>
+    <Modal title={`${duty.name} · 배정 인원`} subtitle={`${duty.zone} · 근무 중 ${people.length}명`} onClose={onClose}>
       <input className="sf-input" placeholder="⌕ 이름 · 연락처 검색" value={q} onChange={(e) => setQ(e.target.value)} />
       <table className="sf-table is-plain">
         <thead>
@@ -861,8 +942,10 @@ function DutyDetailModal({ duty, data, onClose }) {
   )
 }
 
-function AssignModal({ member, data, onClose }) {
-  const [dutyId, setDutyId] = useState(data.duties[0]?.id ?? '')
+function AssignModal({ member, board, actions, onClose }) {
+  const [dutyId, setDutyId] = useState(board.duties[0]?.id ?? '')
+  const [busy, setBusy] = useState(false)
+  const countOf = (id) => active(board.members).filter((x) => x.dutyId === id).length
   return (
     <Modal title="업무 할당" onClose={onClose}>
       <div className="sf-who">
@@ -872,19 +955,20 @@ function AssignModal({ member, data, onClose }) {
         <small>{member.phone}</small>
       </div>
       <p className="sf-label">배정할 업무를 선택하세요.</p>
-      <small className="sf-hint">근무표에 등록한 구역 · 업무가 표시됩니다.</small>
+      <small className="sf-hint">등록한 구역 · 업무가 표시됩니다.</small>
       <ul className="sf-radio">
-        {data.duties.map((d) => (
+        {board.duties.map((d) => (
           <li key={d.id} className={dutyId === d.id ? 'is-on' : ''}>
             <label>
               <input type="radio" name="duty" checked={dutyId === d.id} onChange={() => setDutyId(d.id)} />
               <strong>{d.name}</strong>
               <small>
-                {d.zone} · {membersOfDuty(data, d.id).length}명 배정
+                {d.zone} · {countOf(d.id)}명 배정
               </small>
             </label>
           </li>
         ))}
+        {board.duties.length === 0 && <li className="sf-empty">먼저 명단에서 업무를 추가해 주세요.</li>}
       </ul>
       <div className="sf-actions">
         <button type="button" className="sf-btn" onClick={onClose}>
@@ -893,10 +977,11 @@ function AssignModal({ member, data, onClose }) {
         <button
           type="button"
           className="sf-btn is-primary"
-          disabled={!dutyId}
-          onClick={() => {
-            assignDuty(member.id, dutyId)
-            onClose()
+          disabled={!dutyId || busy}
+          onClick={async () => {
+            setBusy(true)
+            if (await actions.assignDuty(member, dutyId)) onClose()
+            else setBusy(false)
           }}
         >
           할당 확인

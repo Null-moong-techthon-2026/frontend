@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { checkLoginId, signUp } from '../api/authApi'
-import { ONBOARDING_TYPE, authErrorMessage } from '../constants/auth'
-import { ROLE, rememberRole } from '../utils/role'
+import { authErrorMessage } from '../constants/auth'
 import {
   normalizePhone,
   validateEmail,
@@ -15,7 +14,7 @@ import {
 import FormField from './FormField'
 
 // Signup form shared by the organizer and booth-operator screens.
-//   type                'ORGANIZER' | 'OPERATOR' | 'STAFF' (sent as onboardingType; STAFF as OPERATOR)
+//   type                'ORGANIZER' | 'OPERATOR' | 'STAFF' (sent as onboardingType)
 //   title / submitLabel texts
 //   phoneVerification   show the 인증 요청 / 인증번호 fields (UI only: the backend has no phone
 //                       verification yet, so they are disabled and do not block signup)
@@ -81,17 +80,14 @@ export default function SignupForm({ type, title, submitLabel, phoneVerification
     setServerError('')
     setSubmitting(true)
     try {
-      const { accountId } = await signUp({
-        // The backend only accepts ORGANIZER / OPERATOR; a staff account is sent as OPERATOR and
-        // remembered as STAFF in this browser.
-        onboardingType: type === ONBOARDING_TYPE.STAFF ? ONBOARDING_TYPE.OPERATOR : type,
+      await signUp({
+        onboardingType: type,
         loginId: form.loginId,
         password: form.password,
         nickname: form.nickname.trim(),
         phoneNumber: normalizePhone(form.phone),
         email: form.email.trim(),
       })
-      if (type !== ONBOARDING_TYPE.ORGANIZER) rememberRole(accountId, ROLE[type])
       navigate('/login', { replace: true, state: { signedUp: true } })
     } catch (err) {
       if (err.code === 'LOGIN_ID_TAKEN') {

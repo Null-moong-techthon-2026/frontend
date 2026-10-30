@@ -6,7 +6,7 @@ import { homePathFor } from '../utils/role'
 import { useAuth } from '../context/useAuth'
 import './landing.css'
 
-// "행사 개설 신청하기" opens the application form (needs a login; logged-out visitors are sent to the
+// "행사 개설하기" opens the application form (needs a login; logged-out visitors are sent to the
 // login screen first and come back here afterwards).
 const APPLY_PATH = '/apply'
 
@@ -101,15 +101,10 @@ export default function DesktopLanding() {
             서비스 소개
           </button>
           <button type="button" onClick={apply}>
-            행사 개설 신청
+            행사 개설
           </button>
           {user ? (
             <>
-              {user.platformRole === 'ADMIN' && (
-                <button type="button" onClick={() => navigate('/admin/applications')}>
-                  관리자
-                </button>
-              )}
               <button type="button" onClick={logout}>
                 로그아웃
               </button>
@@ -144,7 +139,7 @@ export default function DesktopLanding() {
             </p>
             <div className="lp-cta">
               <button type="button" className="lp-btn" onClick={apply}>
-                행사 개설 신청하기
+                행사 개설하기
                 <span className="lp-btn-icon">
                   <Arrow />
                 </span>
@@ -193,7 +188,7 @@ export default function DesktopLanding() {
             <p>행사 개설을 신청하면 담당자가 확인하고 안내해 드려요.</p>
           </div>
           <button type="button" className="lp-btn is-dark" onClick={apply}>
-            행사 개설 신청하기
+            행사 개설하기
             <span className="lp-btn-icon">
               <Arrow />
             </span>

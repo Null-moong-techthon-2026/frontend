@@ -32,7 +32,7 @@ function Schedule({ event }) {
   const days = useMemo(() => eventDays(event), [event])
   const [day, setDay] = useState(scheduleDay(event))
   const [together, setTogether] = useState(null) // the person whose card is open
-  const { data: shifts, error, reload } = useAsync(() => listMySchedule(mine.eventId, day), [mine.eventId, day])
+  const { data: shifts, error, reload } = useAsync(() => listMySchedule(mine.eventId, day, mine.memberId), [mine.eventId, day])
 
   const list = shifts ?? []
   const worked = list.reduce((sum, s) => sum + (minutes(s.end) - minutes(s.start)), 0)

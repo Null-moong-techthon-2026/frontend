@@ -32,8 +32,14 @@ export const getInvitation = (eventId) => get(`/api/events/${eventId}/applicatio
 
 // POST .../application-invitation -> 201 { id, code, inviteUrl, expiresAt }. The raw code is only
 // returned here; the previous invitation stops working.
-export const issueInvitation = (eventId, expiresAt) =>
-  post(`/api/events/${eventId}/application-invitation`, { expiresAt })
+// The server builds `inviteUrl` from a setting of its own; the link is made here from the code and this
+// site's address, so it opens this site whatever the server is configured with.
+export const inviteLink = (code) => `${window.location.origin}/invite/${code}`
+
+export const issueInvitation = async (eventId, expiresAt) => {
+  const issued = await post(`/api/events/${eventId}/application-invitation`, { expiresAt })
+  return { ...issued, inviteUrl: inviteLink(issued.code) }
+}
 
 // DELETE .../application-invitation -> 204
 export const revokeInvitation = (eventId) => del(`/api/events/${eventId}/application-invitation`)

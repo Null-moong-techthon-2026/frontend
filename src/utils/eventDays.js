@@ -16,11 +16,16 @@ export function eventDays(event) {
   return days
 }
 
+// Today as 'YYYY-MM-DD' (this browser's time zone).
+export function todayYmd() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 // The day a schedule opens on: today when it is a day of the event, else the first day.
 export function scheduleDay(event) {
   const days = eventDays(event)
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  const today = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  const today = todayYmd()
   return days.includes(today) ? today : (days[0] ?? today)
 }

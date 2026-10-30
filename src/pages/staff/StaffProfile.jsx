@@ -6,7 +6,7 @@ import { useAuth } from '../../context/useAuth'
 import { STAFF_ROLE_LABEL } from '../../dummy/staffStore'
 import { dateRange, dayTitle } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
-import { scheduleDay } from '../../utils/eventDays'
+import { todayYmd } from '../../utils/eventDays'
 import { NeedApproval } from './StaffNotices'
 import './staff-app.css'
 
@@ -37,7 +37,7 @@ function Profile() {
   const { data: attendance } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
   const who = whoIs(mine, user)
   const records = attendance?.records ?? []
-  const today = records.find((r) => r.date === scheduleDay(event))
+  const today = records.find((r) => r.date === todayYmd())
 
   return (
     <>
@@ -160,7 +160,7 @@ function Records() {
   const navigate = useNavigate()
   const { mine, event } = useOutletContext()
   const { data: attendance, error, reload } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
-  const today = attendance?.records.find((r) => r.date === scheduleDay(event))
+  const today = attendance?.records.find((r) => r.date === todayYmd())
 
   return (
     <>

@@ -6,7 +6,7 @@ import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { EventPicture } from '../../components/mobile/MobileUi'
 import { STAFF_ROLE_LABEL } from '../../dummy/staffStore'
-import { scheduleDay } from '../../utils/eventDays'
+import { scheduleDay, todayYmd } from '../../utils/eventDays'
 import { dateRange, dayTitle, shortDateTime } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './staff-app.css'
@@ -173,15 +173,16 @@ export function EventRow({ event }) {
 
 function ApprovedHome() {
   const navigate = useNavigate()
-  const { mine, event } = useOutletContext()
+  const { user, mine, event } = useOutletContext()
   const day = scheduleDay(event)
-  const { data: shifts } = useAsync(() => listMySchedule(mine.eventId, day), [mine.eventId, day])
+  const { data: shifts } = useAsync(() => listMySchedule(mine.eventId, day, mine.memberId), [mine.eventId, day])
   const { data: attendance, reload: reloadAttendance } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
   const { data: notices } = useAsync(() => listStaffNotices(mine.eventId), [mine.eventId])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
 
-  const record = attendance?.records.find((r) => r.date === day) ?? null
+  // The clock records today, whatever day of the event the schedule is showing.
+  const record = attendance?.records.find((r) => r.date === todayYmd()) ?? null
   const recent = [...(notices ?? [])].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 2)
 
   const punch = async (call) => {
@@ -201,7 +202,7 @@ function ApprovedHome() {
   return (
     <>
       <h1 className="mb-title">홈</h1>
-      <p className="mb-sub">{mine.name || '스태프'}님, 오늘도 함께해요.</p>
+      <p className="mb-sub">{mine.name || user.nickname}님, 오늘도 함께해요.</p>
 
       <div className="mb-card sa-event">
         <div className="sa-event-row">

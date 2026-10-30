@@ -39,10 +39,9 @@ const eventView = (raw) => ({
   directions: null,
 })
 
-// A booth's photos and cover: the field names are not typed in the OpenAPI document, so a few likely
-// spellings are accepted here - the one place to adjust.
+// A booth's photos: detail has `photos:[{mediaAssetId, sortOrder, imageUrl}]`, the list a `coverImageUrl`.
 const photoUrls = (raw) =>
-  (raw.photos ?? raw.mediaAssets ?? []).map((p) => p.readUrl ?? p.url ?? p.imageUrl).filter(Boolean)
+  (raw.photos ?? []).map((p) => p.imageUrl).filter(Boolean)
 
 const boothView = (raw) => ({
   id: raw.eventBoothId,
@@ -54,7 +53,7 @@ const boothView = (raw) => ({
   intro: raw.description ?? '',
   hours: null,
   photos: photoUrls(raw),
-  imageUrl: photoUrls(raw)[0] ?? raw.imageUrl ?? raw.photoUrl ?? raw.coverUrl ?? raw.representativePhotoUrl ?? null,
+  imageUrl: photoUrls(raw)[0] ?? raw.coverImageUrl ?? null,
   snsUrl: null,
   items: (raw.items ?? []).map((i) => ({
     id: i.id,

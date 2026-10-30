@@ -34,12 +34,12 @@ Figma 와이어프레임(주최자 웹 + 부스 운영자/스태프/방문객 �
 | 6 | 마무리: 백엔드 요청 문서 정리, 린트·빌드, 이 문서 갱신 | ✅ |
 
 ## 어디서부터 이어서?
-**0~6단계와 서버 연결까지 끝났습니다.** 남은 일은 서버 응답 모양 확인과 다듬기입니다.
+**0~6단계와 서버 연결까지 끝났습니다.** 남은 일은 서버에 없는 기능(운영 시간·후원사·통계 등)과 다듬기입니다.
 
 ### 바로 할 수 있는 다음 작업
 1. 사용자 확인 후 푸시 요청이 오면 `git push origin main` (프론트 저장소 frontend).
 2. 사용자가 와이어프레임과 다른 점을 지적하면 해당 화면만 수정 (화면 위치는 아래 표).
-3. 서버 응답 모양을 확인해 normalizer를 맞춘다 (`docs/BACKEND_REQUESTS.md` ②-1). 서버에 없던 기능이 생기면 ③ 항목을 연결한다.
+3. 서버에 없던 기능이 생기면 `docs/BACKEND_REQUESTS.md` ③ 항목을 연결한다.
 
 ### 화면 위치
 | 앱 | 주소 | 파일 |
@@ -58,7 +58,8 @@ Figma 와이어프레임(주최자 웹 + 부스 운영자/스태프/방문객 �
 
 ### 서버 연결 (2026-10-31)
 - 행사 개설 `openEvent`, 역할 `role`, 스태프 전체 `src/api/staffApi.js`, 부스 사진 `operatorApi.js`.
-- **응답 필드 이름은 Swagger에 타입이 없어 가정**했고, 라이브 서버로 확인하지 못했다(공유 서버에 시험 데이터를 만드는 것이 막혀 있었음). 확인할 곳: `staffApi.js`의 normalizer(`memberView`, `shiftView`, `mineView`, `recordView`, `resolveStaffInvite`, `listMyStaffMemberships`), `operatorApi.js`의 `photosOf`, `visitorApi.js`의 `photoUrls`. 목록은 `docs/BACKEND_REQUESTS.md` ②-1.
+- 시험 계정 3개(`cc_probe_org1`, `cc_probe_stf1`, `cc_probe_op1`)와 시험 행사 1개로 서버 전체 흐름을 확인했고(`docs/BACKEND_REQUESTS.md` ②), 그 데이터로 화면도 열어 봤다. 시험 데이터는 수요일 회의에서 DB를 비워 달라고 요청하기로 함(사용자 허락).
+- 다음에 서버 데이터로 화면을 확인하려면 이 계정으로 로그인하면 된다(DB를 비우면 사라짐).
 
 ### 알려진 한계 / 결정해 둔 것 (사용자에게 확인받을 것)
 - 서버에 없어서 화면이 비거나 샘플뿐인 것: 부스 운영 시간·SNS, 후원사·광고, 통계, 결제 내역, 계정 정보 수정, 행사 문의처·운영 시간·오시는 길 (`docs/BACKEND_REQUESTS.md` ③).

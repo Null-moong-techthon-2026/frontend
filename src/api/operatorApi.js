@@ -246,12 +246,8 @@ export async function listMyBoothViews() {
   return page.content.map(myBoothView)
 }
 
-// The booth's photos (first = the cover). The field names are not typed in the OpenAPI document,
-// so a few likely spellings are accepted here - the one place to adjust.
-const photosOf = (raw) =>
-  (raw.photos ?? raw.mediaAssets ?? [])
-    .map((p) => ({ id: p.mediaAssetId ?? p.assetId ?? p.id, url: p.readUrl ?? p.url ?? p.imageUrl ?? null }))
-    .filter((p) => p.id)
+// The booth's photos (first = the cover): `photos:[{mediaAssetId, sortOrder, imageUrl}]`.
+const photosOf = (raw) => (raw.photos ?? []).map((p) => ({ id: p.mediaAssetId, url: p.imageUrl ?? null }))
 
 const detailView = (raw, eventId) => ({
   id: raw.eventBoothId,

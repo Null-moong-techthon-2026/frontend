@@ -45,6 +45,14 @@ const hm = (value) => {
 
 const ymd = (value) => (!value ? '' : /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : instantToLocalDate(value))
 
+// '01099990000' -> '010-9999-0000'
+const dashPhone = (value) => {
+  const d = String(value ?? '').replace(/\D/g, '')
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`
+  return value ?? ''
+}
+
 export const memberView = (r) => ({
   id: r.memberId ?? r.id,
   name: r.name ?? r.nickname ?? r.accountName ?? '',
@@ -52,7 +60,7 @@ export const memberView = (r) => ({
   status: r.status,
   dutyId: r.dutyId ?? r.duty?.id ?? null,
   dutyName: r.dutyName ?? r.duty?.name ?? null,
-  phone: r.phone ?? r.phoneNumber ?? '',
+  phone: dashPhone(r.phone ?? r.phoneNumber),
   email: r.email ?? '',
   affiliation: r.affiliation ?? '',
   memo: r.memo ?? '',
@@ -112,10 +120,18 @@ const base = (eventId) => `/api/events/${eventId}`
 
 // ---------------- organizer ----------------
 
+// The server builds `inviteUrl` from a setting of its own (still "frontend.invalid" there); the link is
+// made here from the token at its end and this site's address.
+const staffInvitation = (raw) => ({
+  code: raw.code,
+  inviteUrl: `${window.location.origin}/invite/staff/${String(raw.inviteUrl ?? '').split('/').pop()}`,
+  expiresAt: raw.expiresAt,
+})
+
 export async function getStaffInvitation(eventId) {
   if (isDemo()) return demoDelay({ code: store.STAFF_INVITE.code, inviteUrl: `${window.location.origin}/invite/staff/${store.STAFF_INVITE.token}`, expiresAt: null })
   try {
-    return await get(`${base(eventId)}/staff-invitation`)
+    return staffInvitation(await get(`${base(eventId)}/staff-invitation`))
   } catch (err) {
     if (err.status === 404) return null
     throw err
@@ -124,7 +140,7 @@ export async function getStaffInvitation(eventId) {
 
 export async function issueStaffInvitation(eventId) {
   if (isDemo()) return getStaffInvitation(eventId)
-  return post(`${base(eventId)}/staff-invitation`)
+  return staffInvitation(await post(`${base(eventId)}/staff-invitation`))
 }
 
 export async function revokeStaffInvitation(eventId) {
@@ -212,8 +228,7 @@ export async function resolveStaffInvite(code) {
       endDate: ymd(e.endDate ?? e.endsAt),
       venue: e.venue ?? '',
       intro: e.description ?? e.intro ?? '',
-      // the event picture behind a valid invitation
-      imageUrl: `/api/staff-invitations/${encodeURIComponent(value)}/poster`,
+      imageUrl: e.posterUrl ?? null,
       hours: null,
       phone: null,
       directions: null,
@@ -242,15 +257,19 @@ export async function listMyStaffMemberships() {
     venue: r.venue ?? r.event?.venue ?? '',
     dutyName: r.dutyName ?? r.duty?.name ?? null,
     name: r.name ?? '',
-    phone: r.phone ?? r.phoneNumber ?? '',
+    phone: dashPhone(r.phone ?? r.phoneNumber),
     email: r.email ?? '',
     affiliation: r.affiliation ?? '',
   }))
 }
 
-export async function listMySchedule(eventId, date) {
+// `selfId` is my own member id: the server lists every person of the shift, me included.
+export async function listMySchedule(eventId, date, selfId) {
   if (isDemo()) return demoDelay(store.demoSchedule(date))
-  return (await get(`${base(eventId)}/staff/me/schedule${query({ date })}`)).map(mineView)
+  return (await get(`${base(eventId)}/staff/me/schedule${query({ date })}`)).map((r) => {
+    const shift = mineView(r)
+    return { ...shift, mates: shift.mates.filter((m) => m.id !== selfId) }
+  })
 }
 
 export async function clockIn(eventId) {

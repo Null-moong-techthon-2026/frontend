@@ -45,7 +45,7 @@ function Field({ label, error, hint, children }) {
 
 function Section({ no, title, children }) {
   return (
-    <section className="ap-card">
+    <section className="ap-section">
       <h2>
         <span>{no}</span>
         {title}

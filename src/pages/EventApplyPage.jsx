@@ -3,10 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { openEvent } from '../api/eventApi'
 import boothLogo from '../assets/booth-logo.png'
 import Toast from '../components/Toast'
-import { HOME_PATH } from '../constants/auth'
 import { apiErrorMessage } from '../constants/errors'
 import { ORG_TYPE, ORG_TYPE_LABEL } from '../constants/eventOpening'
-import { useEvent } from '../context/useEvent'
 import { endOfLocalDate, startOfLocalDate } from '../utils/date'
 import { useToast } from '../utils/useToast'
 import './apply.css'
@@ -55,12 +53,11 @@ function Section({ no, title, children }) {
   )
 }
 
-// 행사 개설 (a new organizer has no event yet): the organization and the event in one form. The
-// backend creates both at once (POST /api/event-openings) and the account becomes its owner.
+// 행사 개설 신청 (a new organizer has no event yet): the organization and the event in one form
+// (POST /api/event-openings). It waits for the 부스럭 team to approve it: see EventPendingPage.
 export default function EventApplyPage() {
   const navigate = useNavigate()
   const { toast, notify } = useToast()
-  const { reload: reloadEvent } = useEvent()
   const [form, setForm] = useState(EMPTY)
   const [showErrors, setShowErrors] = useState(false)
   const [sending, setSending] = useState(false)
@@ -88,8 +85,7 @@ export default function EventApplyPage() {
         endsAt: endOfLocalDate(form.endDate),
         venue: form.venue.trim(),
       })
-      reloadEvent()
-      navigate(HOME_PATH, { replace: true })
+      navigate('/pending', { replace: true })
     } catch (err) {
       notify(apiErrorMessage(err), 'error')
       setSending(false)
@@ -106,8 +102,8 @@ export default function EventApplyPage() {
       </header>
 
       <main className="ap-main">
-        <h1>행사 개설</h1>
-        <p className="ap-lead">단체와 행사 정보를 입력하면 바로 행사를 열고 대시보드에서 관리할 수 있어요.</p>
+        <h1>행사 개설 신청</h1>
+        <p className="ap-lead">단체와 행사 정보를 입력하면 부스럭 운영팀이 확인한 뒤 행사를 열어 드려요.</p>
 
         <form onSubmit={submit} noValidate>
           <Section no="1" title="단체 정보">
@@ -144,7 +140,7 @@ export default function EventApplyPage() {
 
           <div className="ap-submit">
             <button type="submit" className="ap-btn ap-btn-primary" disabled={sending}>
-              {sending ? '여는 중…' : '행사 열기'}
+              {sending ? '신청 중…' : '개설 신청하기'}
             </button>
           </div>
         </form>

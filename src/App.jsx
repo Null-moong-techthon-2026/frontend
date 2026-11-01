@@ -14,6 +14,8 @@ import OrganizerStatsPage from './pages/OrganizerStatsPage'
 import RecruitPage from './pages/RecruitPage'
 import NoticePage from './pages/NoticePage'
 import EventApplyPage from './pages/EventApplyPage'
+import EventPendingPage from './pages/EventPendingPage'
+import AdminApplicationsPage from './pages/AdminApplicationsPage'
 import VisitorLayout from './pages/visitor/VisitorLayout'
 import VisitorHome from './pages/visitor/VisitorHome'
 import VisitorBooths from './pages/visitor/VisitorBooths'
@@ -129,6 +131,10 @@ function App() {
         </Route>
         {/* 행사 개설: needs a login, but not an event (it is how an organizer gets one). */}
         <Route path="/apply" element={<EventApplyPage />} />
+        {/* Waiting for the 부스럭 team to review the application (or told why it was rejected). */}
+        <Route path="/pending" element={<EventPendingPage />} />
+        {/* The 부스럭 team's review screen: ADMIN accounts only (the page sends others away). */}
+        <Route path="/admin/applications" element={<AdminApplicationsPage />} />
         <Route element={<RequireEvent />}>
           <Route path="/organizer/map" element={<OrganizerMapPage />} />
           <Route path="/organizer/dashboard" element={<DashboardPage />} />

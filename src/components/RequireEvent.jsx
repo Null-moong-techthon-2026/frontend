@@ -1,16 +1,22 @@
 import { Navigate, Outlet } from 'react-router-dom'
+import { useMyOpenings } from '../utils/useMyOpenings'
 import { apiErrorMessage } from '../constants/errors'
 import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
 import { ROLE, homePathFor } from '../utils/role'
 import ScreenShell from './ScreenShell'
 
-// An account without an event: a booth operator / staff account has its own screens; an organizer
-// opens an event first (the form at /apply).
+// An account without an event: a booth operator / staff / admin account has its own screens. An organizer
+// who already applied (waiting, rejected or just approved) goes to the waiting page; one who never applied
+// goes to the application form (/apply).
 function NoEvent() {
   const { user } = useAuth()
   const other = user.role && user.role !== ROLE.ORGANIZER
-  return <Navigate to={other ? homePathFor(user) : '/apply'} replace />
+  const { openings, error } = useMyOpenings(other ? null : user.id)
+  if (other) return <Navigate to={homePathFor(user)} replace />
+  if (error) return <Navigate to="/apply" replace />
+  if (!openings) return null
+  return <Navigate to={openings.length > 0 ? '/pending' : '/apply'} replace />
 }
 
 // Wraps the organizer screens (inside RequireAuth): they all need an event to work on.

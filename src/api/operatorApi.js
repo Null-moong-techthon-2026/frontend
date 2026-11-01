@@ -186,6 +186,16 @@ export async function submitBoothApplication(eventId, body, recruitment) {
   return post(`/api/events/${eventId}/applications`, body)
 }
 
+// A required (or optional) document of the application: one file per requirement of the recruitment.
+// POST .../applications/:applicationId/documents?requirementId=:id (multipart `file`); uploading again
+// replaces the file (the call then also needs the document's `revision`).
+export async function uploadApplicationDocument(eventId, applicationId, requirementId, file, revision) {
+  if (isDemo()) return demoDelay(null)
+  const form = new FormData()
+  form.append('file', file)
+  return post(`/api/events/${eventId}/applications/${applicationId}/documents${query({ requirementId, revision })}`, form)
+}
+
 // ---------------- my booth ----------------
 
 const myBoothView = (b) => ({

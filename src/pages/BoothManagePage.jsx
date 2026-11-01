@@ -602,6 +602,16 @@ export default function BoothManagePage() {
                             {d.name}
                             {d.isRequired ? ' (필수)' : ''}
                           </span>
+                          {d.documentId && (
+                            <a
+                              className="bm-doc-link"
+                              href={`/api/events/${eventId}/applications/${selected.applicationId}/documents/${d.documentId}/content`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              보기
+                            </a>
+                          )}
                           <MenuSelect
                             value={d.checkStatus}
                             options={DOCUMENT_OPTIONS}
@@ -614,8 +624,8 @@ export default function BoothManagePage() {
                       {selected.documents.length === 0 && <li>요구한 서류가 없어요.</li>}
                     </ul>
                     <p className="bm-docs-note">
-                      서류는 서비스 밖에서 받아 확인해요. 받은 서류의 상태만 기록하며, 필수 서류가 모두 '확인
-                      완료'여야 승인할 수 있어요.
+                      운영자가 올린 서류를 열어 확인하고 상태를 기록해요. 필수 서류가 모두 '확인 완료'여야
+                      승인할 수 있어요.
                     </p>
 
                     <div className="bm-notes">

@@ -480,3 +480,12 @@
   line-height: 1.5;
   color: var(--om-ink-soft);
 }
+
+.bm-doc-link {
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: #3d7b70;
+  text-decoration: underline;
+  white-space: nowrap;
+}

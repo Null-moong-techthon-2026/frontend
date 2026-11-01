@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { createBoothProfile, getRecruitment, listBoothProfiles, submitBoothApplication } from '../../api/operatorApi'
+import { createBoothProfile, getRecruitment, listBoothProfiles, submitBoothApplication, uploadApplicationDocument } from '../../api/operatorApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
 import { LoadingBlock } from '../../components/mobile/MobileUi'
@@ -12,6 +12,7 @@ import { normalizePhone, validateEmail, validatePhone } from '../../utils/valida
 import './operator.css'
 
 const NEW_PROFILE = '__new__'
+const MAX_FILE_BYTES = 10 * 1024 * 1024 // the server takes PDF / PNG / JPEG up to 10 MB
 
 // 04 부스 신청서 · 부스 운영자
 export default function OperatorApply() {
@@ -38,6 +39,8 @@ export default function OperatorApply() {
   const [showErrors, setShowErrors] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [files, setFiles] = useState({}) // requirement id -> File
+  const [created, setCreated] = useState(null) // { applicationId, uploaded:Set } once the application exists
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -59,12 +62,22 @@ export default function OperatorApply() {
   // With no profile yet the new-profile fields show straight away.
   const profileId = form.profileId || (profiles[0]?.id ?? NEW_PROFILE)
   const creating = profileId === NEW_PROFILE
+  // Only the categories this event accepts (all of them when the recruitment names none).
+  const allowed = Object.values(BOOTH_CATEGORY).filter((c) => recruitment.categories.length === 0 || recruitment.categories.includes(c))
+  const newCategory = allowed.includes(form.newCategory) ? form.newCategory : (allowed[0] ?? form.newCategory)
   const errors = {
     name: form.name.trim() ? '' : '이름을 입력해 주세요.',
     phone: validatePhone(form.phone),
     email: validateEmail(form.email),
     newName: creating && !form.newName.trim() ? '부스 이름을 입력해 주세요.' : '',
   }
+  // The documents asked for this booth's category (a document without categories applies to all).
+  const category = creating ? newCategory : (profiles.find((p) => p.id === profileId)?.categoryCode ?? '')
+  const documents = recruitment.documents.filter((d) => d.categories.length === 0 || d.categories.includes(category))
+  documents.forEach((d) => {
+    const file = files[d.id]
+    errors[`doc-${d.id}`] = !file && d.required ? `${d.name} 파일을 올려 주세요.` : file && file.size > MAX_FILE_BYTES ? '파일은 10MB 이하여야 해요.' : ''
+  })
   const hasErrors = Object.values(errors).some(Boolean)
   const shown = (key) => (showErrors ? errors[key] : '')
 
@@ -78,23 +91,34 @@ export default function OperatorApply() {
       if (creating) {
         const created = await createBoothProfile({
           name: form.newName.trim(),
-          categoryCode: form.newCategory,
+          categoryCode: newCategory,
           introduction: form.newIntro.trim(),
         })
         setProfiles([created, ...profiles])
         useId = created.id
       }
-      await submitBoothApplication(
-        eventId,
-        {
-          boothProfileId: useId,
-          applicantName: form.name.trim(),
-          applicantPhone: normalizePhone(form.phone),
-          applicantEmail: form.email.trim(),
-          ...(state?.code ? { invitationCode: state.code } : {}),
-        },
-        recruitment,
-      )
+      let current = created
+      if (!current) {
+        const result = await submitBoothApplication(
+          eventId,
+          {
+            boothProfileId: useId,
+            applicantName: form.name.trim(),
+            applicantPhone: normalizePhone(form.phone),
+            applicantEmail: form.email.trim(),
+            ...(state?.code ? { invitationCode: state.code } : {}),
+          },
+          recruitment,
+        )
+        current = { applicationId: result.applicationId ?? result.id, uploaded: new Set() }
+        setCreated(current)
+      }
+      // The application exists now; send the files (a failed one can be retried without applying twice).
+      for (const d of documents) {
+        if (!files[d.id] || current.uploaded.has(d.id)) continue
+        await uploadApplicationDocument(eventId, current.applicationId, d.id, files[d.id])
+        current.uploaded.add(d.id)
+      }
       navigate('/operator/invite', { replace: true, state: { applied: recruitment.event.name } })
     } catch (err) {
       setMessage(apiErrorMessage(err))
@@ -156,8 +180,8 @@ export default function OperatorApply() {
               <input className="mb-input" value={form.newName} onChange={set('newName')} placeholder="예: 달빛 떡볶이" maxLength={100} />
             </Field>
             <Field label="카테고리">
-              <select className="mb-select" value={form.newCategory} onChange={set('newCategory')}>
-                {Object.values(BOOTH_CATEGORY).map((c) => (
+              <select className="mb-select" value={newCategory} onChange={set('newCategory')}>
+                {allowed.map((c) => (
                   <option key={c} value={c}>
                     {BOOTH_CATEGORY_LABEL[c]}
                   </option>
@@ -171,12 +195,33 @@ export default function OperatorApply() {
         )}
       </div>
 
+      {documents.length > 0 && (
+        <>
+          <h2 className="mb-h3">서류 업로드</h2>
+          <p className="mb-muted op-caption">행사에서 요청한 서류를 올려 주세요. PDF, PNG, JPG · 최대 10MB</p>
+          <div className="mb-card">
+            {documents.map((d) => (
+              <Field key={d.id} label={`${d.name}${d.required ? ' *' : ' (선택)'}`} error={shown(`doc-${d.id}`)}>
+                <input
+                  className="mb-input"
+                  type="file"
+                  accept="application/pdf,image/png,image/jpeg"
+                  disabled={busy || created?.uploaded.has(d.id)}
+                  onChange={(e) => setFiles((f) => ({ ...f, [d.id]: e.target.files?.[0] }))}
+                />
+                {created?.uploaded.has(d.id) && <p className="mb-muted op-caption">올렸어요.</p>}
+              </Field>
+            ))}
+          </div>
+        </>
+      )}
+
       <p className="op-note">제출 후 검토 결과와 진행 상황은 상태&초대에서 확인할 수 있습니다.</p>
 
       {message && <p className="mb-error" role="alert">{message}</p>}
       <MobileFooter>
         <button type="button" className="mb-btn is-primary" disabled={busy} onClick={submit}>
-          {busy ? '신청 중…' : '신청하기'}
+          {busy ? '신청 중…' : created ? '서류 다시 올리기' : '신청하기'}
         </button>
       </MobileFooter>
     </>

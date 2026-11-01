@@ -1,0 +1,237 @@
+/* Administrator screen for 행사 개설 신청 (pages/AdminApplicationsPage.jsx). An internal tool: plain on purpose. */
+.ad {
+  min-height: 100dvh;
+  background: #f4f8f6;
+  color: #173b35;
+  font-family: inherit;
+}
+.ad button,
+.ad textarea {
+  font-family: inherit;
+}
+.ad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px clamp(16px, 4vw, 56px);
+  background: #fff;
+  border-bottom: 1px solid #d9e6e1;
+}
+.ad-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  font-size: 18px;
+  color: #3d7b70;
+}
+.ad-brand img {
+  width: 28px;
+  height: 28px;
+}
+.ad-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.ad-link {
+  border: 0;
+  background: none;
+  color: #5d7770;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+}
+.ad-main {
+  padding: 28px clamp(16px, 4vw, 56px) 56px;
+  display: grid;
+  gap: 16px;
+}
+.ad-main h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+}
+.ad-lead {
+  margin: 0;
+  font-size: 14px;
+  color: #5d7770;
+}
+.ad-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ad-tabs button {
+  padding: 8px 16px;
+  border: 1px solid #d9e6e1;
+  border-radius: 999px;
+  background: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+}
+.ad-tabs button.is-on {
+  background: #3d7b70;
+  border-color: #3d7b70;
+  color: #fff;
+}
+.ad-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.ad-card {
+  background: #fff;
+  border: 1px solid #d9e6e1;
+  border-radius: 14px;
+  padding: 18px;
+  min-width: 0;
+  overflow-x: auto;
+}
+.ad-card h2 {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 900;
+}
+.ad-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.ad-card th {
+  text-align: left;
+  font-size: 12px;
+  color: #5d7770;
+  padding: 8px 10px;
+}
+.ad-card td {
+  padding: 12px 10px;
+  border-top: 1px solid #e3ece8;
+}
+.ad-card tbody tr {
+  cursor: pointer;
+}
+.ad-card tbody tr:hover,
+.ad-card tbody tr.is-selected {
+  background: #eef6f2;
+}
+.ad-empty {
+  margin: 0;
+  padding: 28px 8px;
+  text-align: center;
+  color: #5d7770;
+  font-size: 14px;
+}
+.ad-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  background: #e8eeec;
+  color: #51655f;
+}
+.ad-chip.is-pending {
+  background: #d9f58a;
+  color: #3f5a14;
+}
+.ad-chip.is-approved {
+  background: #3d7b70;
+  color: #fff;
+}
+.ad-chip.is-rejected {
+  background: #f7d9d4;
+  color: #8a2f22;
+}
+.ad-card dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 14px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.ad-card dt {
+  color: #5d7770;
+}
+.ad-card dd {
+  margin: 0;
+  word-break: break-word;
+}
+.ad-reason {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.ad-reason textarea {
+  min-height: 84px;
+  padding: 10px;
+  border: 1px solid #d3dcd8;
+  border-radius: 10px;
+  font-size: 14px;
+  resize: vertical;
+}
+.ad-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.ad-btn {
+  padding: 10px 18px;
+  border: 1px solid #d3dcd8;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+}
+.ad-btn.is-primary {
+  background: #3d7b70;
+  border-color: #3d7b70;
+  color: #fff;
+}
+.ad-btn.is-danger {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+.ad-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ad-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 20, 17, 0.55);
+  z-index: 50;
+}
+.ad-modal-box {
+  width: min(100%, 400px);
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px;
+  display: grid;
+  gap: 10px;
+}
+.ad-modal-box h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+}
+.ad-modal-box p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #5d7770;
+}
+@media (max-width: 760px) {
+  .ad-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

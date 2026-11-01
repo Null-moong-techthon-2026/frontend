@@ -11,10 +11,24 @@ import { del, get, patch, post, query } from './client'
 export const listMyEvents = (participation = 'ORGANIZER', page = 0, size = 20) =>
   get(`/api/me/events${query({ participation, page, size })}`)
 
-// POST /api/event-openings -> 201 the new event. Creates the organization (the account becomes its
-// OWNER), a draft event and an empty recruitment in one step. No approval.
+// POST /api/event-openings -> 201 { id, status:'PENDING', createdAt, revision }. The application waits for
+// the 부스럭 team: nothing is created until it is approved (then the organization, the event and an empty
+// recruitment appear and the account becomes the organization's OWNER).
 // body: { orgName, orgType, eventName, startsAt, endsAt, venue }
 export const openEvent = (body) => post('/api/event-openings', body)
+
+//   opening -> { id, applicantAccountId, orgName, orgType, eventName, startsAt, endsAt, venue,
+//                status:'PENDING'|'APPROVED'|'REJECTED', createdAt, reviewedAt, reviewedBy, rejectionReason,
+//                eventId, organizationId, revision }
+// GET /api/me/event-openings -> { content: opening[], page, size, totalElements, totalPages } (the account's own)
+export const listMyOpenings = () => get(`/api/me/event-openings${query({ page: 0, size: 20 })}`)
+
+// Administrator only (the account's /api/me role is ADMIN; other accounts get 403):
+// GET /api/admin/event-openings?status&page&size, GET .../:id, POST .../:id/decision
+//   decision body { decision:'APPROVED'|'REJECTED', rejectionReason?, revision }
+export const listAdminOpenings = (params) => get(`/api/admin/event-openings${query(params)}`)
+export const getAdminOpening = (id) => get(`/api/admin/event-openings/${id}`)
+export const decideOpening = (id, body) => post(`/api/admin/event-openings/${id}/decision`, body)
 
 // GET /api/events/:eventId
 export const getEvent = (eventId) => get(`/api/events/${eventId}`)

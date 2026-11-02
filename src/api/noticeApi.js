@@ -25,6 +25,15 @@ export const updateAnnouncement = (eventId, id, body) => put(`${base(eventId)}/$
 export const deleteAnnouncement = (eventId, id, revision) =>
   del(`${base(eventId)}/${id}${query({ revision })}`)
 
+// POST /api/events/:eventId/announcement-attachments (multipart `file`) -> { attachmentId, fileName,
+// mimeType, sizeBytes, uploadedAt, readUrl }. Link it with `attachmentIds` (at most 5) when saving a
+// notice; leaving `attachmentIds` out of an update keeps the current files, [] removes them.
+export function uploadAttachment(eventId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return post(`/api/events/${eventId}/announcement-attachments`, form)
+}
+
 // Loads every page of the manage list (at most 100 per page).
 export async function listAllAnnouncements(eventId) {
   const all = []

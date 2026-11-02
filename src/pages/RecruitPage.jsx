@@ -48,6 +48,8 @@ const toForm = (event, recruit) => ({
   feeKrw: recruit.feeKrw === null ? '' : String(recruit.feeKrw),
   feeNote: recruit.feeNote,
   documents: recruit.documents,
+  contactPhone: recruit.contactPhone,
+  questions: recruit.questions,
 })
 
 // Canonical form: used to save, and to tell whether the draft differs from what is saved
@@ -62,11 +64,16 @@ const normalize = (f) => ({
   feeKrw: f.feeKrw.trim(),
   feeNote: f.feeNote.trim(),
   documents: f.documents.map((d) => ({ id: d.id, label: d.label, required: d.required, categories: d.categories })),
+  contactPhone: f.contactPhone.trim(),
+  questions: f.questions.map((q) => ({ id: q.id, label: q.label, required: q.required })),
 })
 
 const sameForm = (a, b) => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b))
 
 const isValidTarget = (t) => /^\d+$/.test(t) && Number(t) >= 1 && Number(t) <= RECRUIT_TARGET_MAX
+const isValidPhone = (t) => /^[+0-9() -]*$/.test(t) && t.length <= 30
+const QUESTION_MAX = 30
+const QUESTION_LABEL_MAX = 200
 const isValidFee = (t) => t === '' || (/^\d+$/.test(t) && Number(t) <= RECRUIT_FEE_MAX_KRW)
 
 const feeText = (feeKrw, feeNote) => {
@@ -119,9 +126,12 @@ function RecruitEditor({ event, recruit }) {
   const [dragging, setDragging] = useState(false)
   const [docDraft, setDocDraft] = useState(null) // null = closed, string = the new document's name
   const [docError, setDocError] = useState('')
+  const [qDraft, setQDraft] = useState(null) // null = closed, string = the new question
+  const [qError, setQError] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
   const docSeq = useRef(1)
+  const qSeq = useRef(1)
 
   // Esc closes whichever dialog is open.
   useEffect(() => {
@@ -145,6 +155,7 @@ function RecruitEditor({ event, recruit }) {
       : `모집 부스 수는 1~${RECRUIT_TARGET_MAX} 사이 숫자로 입력해 주세요.`,
     categories: form.categories.length > 0 ? '' : '모집 카테고리를 하나 이상 선택해 주세요.',
     fee: isValidFee(form.feeKrw.trim()) ? '' : '참가비는 0 이상의 숫자(원)로 입력해 주세요.',
+    contact: isValidPhone(form.contactPhone.trim()) ? '' : '문의 연락처는 숫자, +, -, 괄호만 쓸 수 있어요.',
   }
   const hasErrors = Object.values(errors).some(Boolean)
   const shown = (key) => (showErrors ? errors[key] : '')
@@ -168,6 +179,8 @@ function RecruitEditor({ event, recruit }) {
         feeKrw: next.feeKrw === '' ? null : Number(next.feeKrw),
         feeNote: next.feeNote,
         documents: next.documents,
+        contactPhone: next.contactPhone,
+        questions: next.questions,
       })
       // Show what was saved (new documents now carry their server-made ids) as the new baseline.
       setForm(toForm(savedEvent, savedRecruit))
@@ -207,6 +220,20 @@ function RecruitEditor({ event, recruit }) {
     patch({
       documents: form.documents.map((d) => (d.id === id ? { ...d, required: !d.required } : d)),
     })
+
+  const toggleQuestion = (id) =>
+    patch({ questions: form.questions.map((q) => (q.id === id ? { ...q, required: !q.required } : q)) })
+
+  const removeQuestion = (id) => patch({ questions: form.questions.filter((q) => q.id !== id) })
+
+  const addQuestion = () => {
+    const label = (qDraft ?? '').trim()
+    if (!label) return setQError('질문을 입력해 주세요.')
+    if (form.questions.length >= QUESTION_MAX) return setQError(`질문은 최대 ${QUESTION_MAX}개까지 추가할 수 있어요.`)
+    patch({ questions: [...form.questions, { id: `new-${qSeq.current++}`, label, required: false }] })
+    setQDraft(null)
+    setQError('')
+  }
 
   const removeDoc = (id) => patch({ documents: form.documents.filter((d) => d.id !== id) })
 
@@ -551,6 +578,94 @@ function RecruitEditor({ event, recruit }) {
               {summary.total > 0 && (
                 <p className="rc-hint">첫 신청이 들어온 뒤에는 카테고리·참가비·필요 서류를 바꿀 수 없어요.</p>
               )}
+            </div>
+          </div>
+
+          <div className="rc-row">
+            <span className="rc-label">추가 질문</span>
+            <div>
+              <div className="rc-checks">
+                {form.questions.map((q) => (
+                  <span key={q.id} className="rc-check rc-doc">
+                    <label>
+                      <input type="checkbox" checked={q.required} onChange={() => toggleQuestion(q.id)} />
+                      {q.label}
+                      {q.required ? ' (필수)' : ''}
+                    </label>
+                    <button type="button" className="rc-doc-remove" aria-label={`${q.label} 삭제`} onClick={() => removeQuestion(q.id)}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {qDraft === null ? (
+                  <button
+                    type="button"
+                    className="rc-add"
+                    onClick={() => {
+                      setQDraft('')
+                      setQError('')
+                    }}
+                  >
+                    + 질문 추가
+                  </button>
+                ) : (
+                  <span className="rc-add-form">
+                    <input
+                      autoFocus
+                      className="rc-input"
+                      maxLength={QUESTION_LABEL_MAX}
+                      placeholder="예: 부스 운영 경험이 있으신가요?"
+                      value={qDraft}
+                      onChange={(e) => {
+                        setQDraft(e.target.value)
+                        setQError('')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addQuestion()
+                        } else if (e.key === 'Escape') {
+                          setQDraft(null)
+                          setQError('')
+                        }
+                      }}
+                    />
+                    <button type="button" className="om-chip" onClick={addQuestion}>
+                      추가
+                    </button>
+                    <button
+                      type="button"
+                      className="om-chip"
+                      onClick={() => {
+                        setQDraft(null)
+                        setQError('')
+                      }}
+                    >
+                      취소
+                    </button>
+                  </span>
+                )}
+              </div>
+              {qError && <p className="rc-error">{qError}</p>}
+              <p className="rc-hint">운영자가 신청서를 쓸 때 답하는 질문이에요. 체크하면 필수 질문이에요.</p>
+            </div>
+          </div>
+
+          <div className="rc-row">
+            <label className="rc-label" htmlFor="rc-contact">
+              문의 연락처
+            </label>
+            <div>
+              <input
+                id="rc-contact"
+                className="rc-input"
+                inputMode="tel"
+                maxLength={30}
+                placeholder="예: 부스 담당자 010-0000-0000"
+                value={form.contactPhone}
+                onChange={(e) => patch({ contactPhone: e.target.value })}
+              />
+              {shown('contact') && <p className="rc-error">{shown('contact')}</p>}
             </div>
           </div>
 

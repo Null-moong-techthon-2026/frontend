@@ -484,3 +484,15 @@
 .op-photo-add.is-busy {
   opacity: 0.6;
 }
+
+.op-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+.op-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { getEvent } from '../../api/eventApi'
+import { getEvent, getEventContactPhone } from '../../api/eventApi'
 import { listMyStaffMemberships } from '../../api/staffApi'
 import MobileLayout from '../../components/mobile/MobileLayout'
 import { LoadingBlock } from '../../components/mobile/MobileUi'
@@ -30,7 +30,8 @@ async function loadEvent(mine) {
     directions: null,
   }
   try {
-    return { ...fallback, ...toEvent(await getEvent(mine.eventId)), hours: null, phone: null, directions: null }
+    const phone = await getEventContactPhone(mine.eventId)
+    return { ...fallback, ...toEvent(await getEvent(mine.eventId)), hours: null, phone, directions: null }
   } catch {
     return fallback
   }

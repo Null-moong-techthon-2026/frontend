@@ -28,7 +28,9 @@ import {
 } from '../dummy/demoData'
 import { demoDelay, isDemo } from '../utils/demo'
 import { toEvent } from '../utils/event'
+import { getEventContactPhone } from './eventApi'
 import { get, query } from './client'
+import { toAttachments } from '../utils/notice'
 
 const base = (eventId) => `/api/public/events/${eventId}`
 
@@ -72,12 +74,14 @@ const noticeView = (raw, author = '') => ({
   publishedAt: raw.publishedAt,
   author,
   attachment: null,
+  attachments: toAttachments(raw.attachments),
   imageUrl: raw.imageUrl ?? null,
 })
 
 export async function getPublicEvent(eventId) {
   if (isDemo()) return demoDelay(DEMO_EVENT)
-  return eventView(await get(base(eventId)))
+  const [raw, phone] = await Promise.all([get(base(eventId)), getEventContactPhone(eventId)])
+  return { ...eventView(raw), phone }
 }
 
 export async function listPublicBooths(eventId) {

@@ -93,7 +93,7 @@ export function LoadingBlock({ error, onRetry, children = '불러오는 중…' 
   if (error) {
     return (
       <div className="mb-empty">
-        <p>{error.status === 404 ? '찾을 수 없어요.' : '불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}</p>
+        <p>{error.status === 404 ? '찾을 수 없어요. 주소가 맞는지, 아직 공개되지 않은 행사는 아닌지 확인해 주세요.' : '불러오지 못했어요. 잠시 후 다시 시도해 주세요.'}</p>
         {onRetry && (
           <button type="button" className="mb-btn is-outline is-sm" onClick={onRetry}>
             다시 시도
@@ -103,4 +103,24 @@ export function LoadingBlock({ error, onRetry, children = '불러오는 중…' 
     )
   }
   return <div className="mb-loading">{children}</div>
+}
+
+// The files attached to a notice (opened in a new tab). Demo notices carry a single file name only.
+export function NoticeAttachments({ notice }) {
+  const files = notice.attachments?.length ? notice.attachments : notice.attachment ? [{ id: 'demo', name: notice.attachment, url: null }] : []
+  return files.map((f) =>
+    f.url ? (
+      <a key={f.id} className="mb-card vs-attach" href={f.url} target="_blank" rel="noreferrer">
+        <MIcon name="file" size={18} />
+        <span>{f.name}</span>
+        <MIcon name="chevron" size={16} />
+      </a>
+    ) : (
+      <div key={f.id} className="mb-card vs-attach">
+        <MIcon name="file" size={18} />
+        <span>{f.name}</span>
+        <MIcon name="chevron" size={16} />
+      </div>
+    ),
+  )
 }

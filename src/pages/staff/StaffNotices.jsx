@@ -3,7 +3,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { getStaffNotice, listStaffNotices } from '../../api/staffApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
-import { ContactHqButton, LoadingBlock } from '../../components/mobile/MobileUi'
+import { ContactHqButton, LoadingBlock, NoticeAttachments } from '../../components/mobile/MobileUi'
 import { longDateTime, shortDateTime } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './staff-app.css'
@@ -123,6 +123,7 @@ function NoticeDetail() {
         ))}
       </div>
       {notice.imageUrl && <img className="vs-notice-img" src={notice.imageUrl} alt="" />}
+      <NoticeAttachments notice={notice} />
       <MobileFooter>
         <ContactHqButton phone={event.phone} />
       </MobileFooter>

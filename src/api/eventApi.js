@@ -30,6 +30,17 @@ export const listAdminOpenings = (params) => get(`/api/admin/event-openings${que
 export const getAdminOpening = (id) => get(`/api/admin/event-openings/${id}`)
 export const decideOpening = (id, body) => post(`/api/admin/event-openings/${id}/decision`, body)
 
+// The operations office's phone number: the contact of the published recruitment (`contactPhone`, read
+// from the public recruitment page). null when there is none or the recruitment is not public.
+export async function getEventContactPhone(eventId) {
+  try {
+    const recruitment = await get(`/api/public/events/${eventId}/recruitment`)
+    return recruitment.contactPhone || null
+  } catch {
+    return null
+  }
+}
+
 // GET /api/events/:eventId
 export const getEvent = (eventId) => get(`/api/events/${eventId}`)
 

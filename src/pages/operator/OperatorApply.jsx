@@ -12,6 +12,8 @@ import { normalizePhone, validateEmail, validatePhone } from '../../utils/valida
 import './operator.css'
 
 const NEW_PROFILE = '__new__'
+const FACILITIES = ['전기', '물', '화기', '테이블']
+const FILE_TYPES = ['application/pdf', 'image/png', 'image/jpeg']
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // the server takes PDF / PNG / JPEG up to 10 MB
 
 // 04 부스 신청서 · 부스 운영자
@@ -35,7 +37,14 @@ export default function OperatorApply() {
     newName: '',
     newCategory: BOOTH_CATEGORY.FOOD,
     newIntro: '',
+    affiliation: '',
+    bankName: '',
+    accountNumber: '',
+    accountHolder: '',
+    saleItems: '',
   })
+  const [facilities, setFacilities] = useState([])
+  const [answers, setAnswers] = useState({}) // question id -> answer
   const [showErrors, setShowErrors] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
@@ -74,9 +83,12 @@ export default function OperatorApply() {
   // The documents asked for this booth's category (a document without categories applies to all).
   const category = creating ? newCategory : (profiles.find((p) => p.id === profileId)?.categoryCode ?? '')
   const documents = recruitment.documents.filter((d) => d.categories.length === 0 || d.categories.includes(category))
+  recruitment.questions.forEach((q) => {
+    errors[`q-${q.id}`] = q.required && !(answers[q.id] ?? '').trim() ? '답변을 입력해 주세요.' : ''
+  })
   documents.forEach((d) => {
     const file = files[d.id]
-    errors[`doc-${d.id}`] = !file && d.required ? `${d.name} 파일을 올려 주세요.` : file && file.size > MAX_FILE_BYTES ? '파일은 10MB 이하여야 해요.' : ''
+    errors[`doc-${d.id}`] = !file && d.required ? `${d.name} 파일을 올려 주세요.` : file && !FILE_TYPES.includes(file.type) ? '올릴 수 없는 형식이에요. PDF, PNG, JPG만 가능해요.' : file && file.size > MAX_FILE_BYTES ? '파일은 10MB 이하여야 해요.' : ''
   })
   const hasErrors = Object.values(errors).some(Boolean)
   const shown = (key) => (showErrors ? errors[key] : '')
@@ -107,6 +119,17 @@ export default function OperatorApply() {
             applicantPhone: normalizePhone(form.phone),
             applicantEmail: form.email.trim(),
             ...(state?.code ? { invitationCode: state.code } : {}),
+            ...optional({
+              affiliation: form.affiliation,
+              bankName: form.bankName,
+              accountNumber: form.accountNumber,
+              accountHolder: form.accountHolder,
+              saleItems: form.saleItems,
+              requiredFacilities: facilities.join(', '),
+            }),
+            ...(recruitment.questions.length > 0
+              ? { additionalAnswers: recruitment.questions.filter((q) => (answers[q.id] ?? '').trim()).map((q) => ({ questionId: q.id, answer: answers[q.id].trim() })) }
+              : {}),
           },
           recruitment,
         )
@@ -162,6 +185,17 @@ export default function OperatorApply() {
         </Field>
       </div>
 
+      <div className="mb-card">
+        <Field label="소속 (선택)">
+          <input className="mb-input" value={form.affiliation} onChange={set('affiliation')} placeholder="예: 인하대학교 동아리" maxLength={100} />
+        </Field>
+        <Field label="계좌 정보 (선택)">
+          <input className="mb-input" value={form.bankName} onChange={set('bankName')} placeholder="은행" maxLength={50} />
+          <input className="mb-input" value={form.accountNumber} onChange={set('accountNumber')} placeholder="계좌번호" inputMode="numeric" maxLength={50} />
+          <input className="mb-input" value={form.accountHolder} onChange={set('accountHolder')} placeholder="예금주" maxLength={50} />
+        </Field>
+      </div>
+
       <h2 className="mb-h3">부스 프로필</h2>
       <div className="mb-card">
         <Field label="신청에 사용할 부스">
@@ -195,6 +229,46 @@ export default function OperatorApply() {
         )}
       </div>
 
+      <h2 className="mb-h3">판매 품목 (선택)</h2>
+      <div className="mb-card">
+        <textarea className="mb-textarea" value={form.saleItems} onChange={set('saleItems')} placeholder="예: 떡볶이, 어묵, 음료" maxLength={1000} />
+      </div>
+
+      <h2 className="mb-h3">필요 설비 (복수 선택)</h2>
+      <div className="mb-card">
+        <div className="op-checks">
+          {FACILITIES.map((f) => (
+            <label key={f} className="op-check">
+              <input
+                type="checkbox"
+                checked={facilities.includes(f)}
+                onChange={() => setFacilities((list) => (list.includes(f) ? list.filter((x) => x !== f) : [...list, f]))}
+              />
+              {f}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {recruitment.questions.length > 0 && (
+        <>
+          <h2 className="mb-h3">주최측 추가 질문</h2>
+          <div className="mb-card">
+            {recruitment.questions.map((q, i) => (
+              <Field key={q.id} label={`Q${i + 1}. ${q.label}${q.required ? ' *' : ' (선택)'}`} error={shown(`q-${q.id}`)}>
+                <textarea
+                  className="mb-textarea"
+                  value={answers[q.id] ?? ''}
+                  onChange={(e) => setAnswers((cur) => ({ ...cur, [q.id]: e.target.value }))}
+                  placeholder="내용을 입력해 주세요."
+                  maxLength={2000}
+                />
+              </Field>
+            ))}
+          </div>
+        </>
+      )}
+
       {documents.length > 0 && (
         <>
           <h2 className="mb-h3">서류 업로드</h2>
@@ -227,6 +301,9 @@ export default function OperatorApply() {
     </>
   )
 }
+
+// Only the fields that were filled in go to the server.
+const optional = (fields) => Object.fromEntries(Object.entries(fields).filter(([, v]) => String(v ?? '').trim()).map(([k, v]) => [k, String(v).trim()]))
 
 function Field({ label, error, children }) {
   return (

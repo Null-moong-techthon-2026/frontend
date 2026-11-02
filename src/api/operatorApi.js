@@ -36,6 +36,7 @@ import { demoDelay, isDemo, isDemoNewcomer } from '../utils/demo'
 import { toEvent } from '../utils/event'
 import * as boothApi from './boothApi'
 import { get, patch, post, put, query } from './client'
+import { toAttachments } from '../utils/notice'
 
 const eventFrom = (raw) => ({
   ...toEvent(raw),
@@ -60,6 +61,8 @@ const recruitmentView = (raw) => ({
     required: d.isRequired,
     categories: d.applicableCategoryCodes ?? [],
   })),
+  contactPhone: raw.contactPhone ?? '',
+  questions: (raw.additionalQuestions ?? []).map((q) => ({ id: q.id, label: q.question, required: q.isRequired })),
   status: raw.recruitmentStatus ?? 'OPEN',
 })
 
@@ -78,6 +81,8 @@ const demoRecruitment = (item) => ({
     required: d.isRequired,
     categories: d.applicableCategoryCodes,
   })),
+  contactPhone: '',
+  questions: [],
   status: 'OPEN',
 })
 
@@ -154,6 +159,7 @@ const applicationView = (a) => ({
   status: a.reviewStatus,
   submittedAt: a.submittedAt,
   rejectionReason: a.rejectionReason ?? null,
+  cancelReason: a.cancelReason ?? null,
   boothId: a.eventBoothId ?? null,
   boothCode: a.boothCode ?? null,
 })
@@ -390,6 +396,7 @@ const noticeRow = (raw, author = '') => ({
   publishedAt: raw.publishedAt,
   author,
   attachment: null,
+  attachments: toAttachments(raw.attachments),
   imageUrl: raw.imageUrl ?? null,
 })
 

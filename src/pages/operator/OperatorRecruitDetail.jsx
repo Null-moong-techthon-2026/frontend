@@ -84,6 +84,13 @@ export default function OperatorRecruitDetail() {
         {r.feeNote && <li>{r.feeNote}</li>}
       </ul>
 
+      {r.contactPhone && (
+        <>
+          <h2 className="mb-h3">문의 연락처</h2>
+          <p className="vs-body">{r.contactPhone}</p>
+        </>
+      )}
+
       <MobileFooter>
         <button
           type="button"

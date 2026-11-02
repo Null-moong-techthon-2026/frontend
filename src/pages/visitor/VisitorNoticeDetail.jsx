@@ -2,7 +2,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { getPublicNotice } from '../../api/visitorApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
-import { LoadingBlock } from '../../components/mobile/MobileUi'
+import { LoadingBlock, NoticeAttachments } from '../../components/mobile/MobileUi'
 import { longDateTime } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './visitor.css'
@@ -45,13 +45,7 @@ export default function VisitorNoticeDetail() {
         ))}
       </div>
       {notice.imageUrl && <img className="vs-notice-img" src={notice.imageUrl} alt="" />}
-      {notice.attachment && (
-        <div className="mb-card vs-attach">
-          <MIcon name="file" size={18} />
-          <span>{notice.attachment}</span>
-          <MIcon name="chevron" size={16} />
-        </div>
-      )}
+      <NoticeAttachments notice={notice} />
 
       <MobileFooter>
         <button type="button" className="mb-btn is-outline" onClick={() => navigate(`${base}/map`)}>

@@ -4,7 +4,7 @@ import { getOperatorNotice, listOperatorNotices } from '../../api/operatorApi'
 import { getPublicEvent } from '../../api/visitorApi'
 import MobileFooter from '../../components/mobile/MobileFooter'
 import MIcon from '../../components/mobile/MobileIcons'
-import { ContactHqButton, LoadingBlock } from '../../components/mobile/MobileUi'
+import { ContactHqButton, LoadingBlock, NoticeAttachments } from '../../components/mobile/MobileUi'
 import { longDateTime, shortDateTime } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import './operator.css'
@@ -95,13 +95,7 @@ export function OperatorNoticeDetail() {
         ))}
       </div>
       {notice.imageUrl && <img className="vs-notice-img" src={notice.imageUrl} alt="" />}
-      {notice.attachment && (
-        <div className="mb-card vs-attach">
-          <MIcon name="file" size={18} />
-          <span>{notice.attachment}</span>
-          <MIcon name="chevron" size={16} />
-        </div>
-      )}
+      <NoticeAttachments notice={notice} />
       <MobileFooter>
         <ContactHqButton phone={event?.phone} />
       </MobileFooter>

@@ -45,6 +45,12 @@ export const checkDocument = (eventId, applicationId, requirementId, body) =>
 export const decideApplication = (eventId, applicationId, body) =>
   post(`${base(eventId)}/applications/${applicationId}/decision`, body)
 
+// POST .../cancellation { revision, cancelReason? } -> application detail with reviewStatus 'CANCELLED'
+// (cancelledAt / cancelledBy / cancelReason). Only an APPROVED application; the record stays and the
+// booth disappears from the booth list.
+export const cancelApplication = (eventId, applicationId, body) =>
+  post(`${base(eventId)}/applications/${applicationId}/cancellation`, body)
+
 // ---- booths (approved applications + booths registered by the organizer) ----
 
 // GET .../booths?page&size&q&categoryCode&operationStatus&stockSummary&placementStatus&source&visibilityStatus&sort

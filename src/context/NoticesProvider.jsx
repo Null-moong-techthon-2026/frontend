@@ -34,6 +34,8 @@ export default function NoticesProvider({ children }) {
     imageAssetId: fields.image?.assetId ?? null,
     audiences: fields.audiences,
     isUrgent: fields.urgent,
+    // Left out when the fields carry no list, so an update keeps the files it had.
+    ...(fields.attachments ? { attachmentIds: fields.attachments.map((a) => a.id) } : {}),
     publicationStatus: status === NOTICE_STATUS.PUBLISHED ? 'PUBLISHED' : 'DRAFT',
   })
 

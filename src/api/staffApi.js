@@ -30,6 +30,7 @@ import * as store from '../dummy/staffStore'
 import { demoDelay, isDemo } from '../utils/demo'
 import { instantToLocalDate, instantToLocalDateTime } from '../utils/date'
 import { get, patch, post, put, query, del } from './client'
+import { toAttachments } from '../utils/notice'
 
 const notFound = () => Object.assign(new Error('not found'), { status: 404, code: 'RESOURCE_NOT_FOUND' })
 
@@ -300,6 +301,7 @@ const noticeRow = (raw) => ({
   publishedAt: raw.publishedAt,
   author: '',
   attachment: null,
+  attachments: toAttachments(raw.attachments),
   imageUrl: raw.imageUrl ?? null,
 })
 

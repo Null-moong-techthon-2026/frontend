@@ -6,6 +6,10 @@ import { formatDateTime, instantToLocalDateTime } from './date'
 
 const AUDIENCES = Object.keys(NOTICE_AUDIENCE_LABEL)
 
+// Backend attachments [{attachmentId, fileName, mimeType, sizeBytes, uploadedAt, readUrl}] -> [{id, name, size, url}]
+export const toAttachments = (list) =>
+  (list ?? []).map((a) => ({ id: a.attachmentId, name: a.fileName, size: a.sizeBytes, url: a.readUrl }))
+
 // Backend announcement -> the Notice model the screens use (see src/types.js).
 // List rows carry no body / image; those fields are filled in once the notice is opened.
 export function toNotice(raw) {
@@ -14,6 +18,8 @@ export function toNotice(raw) {
     id: raw.id,
     title: raw.title,
     body: raw.body ?? '',
+    attachments: toAttachments(raw.attachments),
+    loaded: raw.body !== undefined, // list rows carry no body (and no attachments) yet
     image: raw.imageAssetId ? { assetId: raw.imageAssetId, url: raw.imageUrl } : null,
     audiences: AUDIENCES.filter((a) => raw.audiences.includes(a)),
     urgent: raw.isUrgent,

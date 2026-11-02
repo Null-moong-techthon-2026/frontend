@@ -6,12 +6,14 @@ export const BOOTH_STATUS = {
   PENDING: 'PENDING', // 검토 중 (no decision yet)
   APPROVED: 'APPROVED', // 승인
   REJECTED: 'REJECTED', // 반려
+  CANCELLED: 'CANCELLED', // 승인 취소 (an approved application withdrawn; the record stays)
 }
 
 export const BOOTH_STATUS_LABEL = {
   [BOOTH_STATUS.PENDING]: '검토 중',
   [BOOTH_STATUS.APPROVED]: '승인',
   [BOOTH_STATUS.REJECTED]: '반려',
+  [BOOTH_STATUS.CANCELLED]: '취소됨',
 }
 
 // Order = display order (filters, checkboxes).

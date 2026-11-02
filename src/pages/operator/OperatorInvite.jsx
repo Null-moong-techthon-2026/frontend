@@ -12,6 +12,7 @@ const STATUS_TONE = {
   [BOOTH_STATUS.PENDING]: '',
   [BOOTH_STATUS.APPROVED]: ' is-green',
   [BOOTH_STATUS.REJECTED]: ' is-red',
+  [BOOTH_STATUS.CANCELLED]: ' is-gray',
 }
 
 // 상태&초대 탭 · 부스 운영자: type an invitation code, and follow my applications.
@@ -79,6 +80,11 @@ export default function OperatorInvite() {
             <p className="mb-muted op-caption">
               {a.boothName} · {BOOTH_CATEGORY_LABEL[a.categoryCode] ?? ''} · {shortDate(a.submittedAt)} 신청
             </p>
+            {a.status === BOOTH_STATUS.CANCELLED && a.cancelReason && (
+              <p className="op-reason">
+                <MIcon name="info" size={14} /> 취소 사유: {a.cancelReason}
+              </p>
+            )}
             {a.status === BOOTH_STATUS.REJECTED && a.rejectionReason && (
               <p className="op-reason">
                 <MIcon name="info" size={14} /> 반려 사유: {a.rejectionReason}

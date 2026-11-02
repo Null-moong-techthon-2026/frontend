@@ -1,4 +1,4 @@
-# 백엔드 관련 정리 (2026-11-01 갱신, 서버로 직접 확인함)
+# 백엔드 관련 정리 (2026-11-03 갱신, 서버로 직접 확인함)
 
 요청했던 3가지(행사 개설, 계정 역할, 스태프 API)와 부스 사진 API가 배포 서버에 반영된 것을 확인하고 프론트를 연결했습니다.
 아래는 **① 연결 현황 ② 서버로 확인한 결과와 남은 부탁 ③ 아직 서버에 없는 것** 입니다.
@@ -36,24 +36,27 @@
 | 부스 사진 응답은 `photos:[{mediaAssetId, sortOrder, imageUrl}]`, 공개 목록은 `coverImageUrl` | 그 이름대로 읽습니다 |
 | 출퇴근 시각이 ISO 시각(UTC), 날짜는 서버 기준 | 브라우저 시간대로 바꿔 보여 줍니다 |
 
-### 백엔드가 반영한 것 (2026-11-01 서버로 확인)
-- 행사 개설 승인 흐름(신청 PENDING → 관리자 승인·반려), 신청 서류 업로드·열람 API, 스키마 이름 분리(`BoothApplicationApply`, `StaffApplicationApply` 등), `localhost:5173` CORS 허용.
+### 백엔드가 반영한 것 (2026-11-01 반영, 11-03 서버로 직접 확인)
+- 행사 개설 승인: 신청은 `PENDING`으로 저장, 관리자(ADMIN)가 승인·반려. 승인하면 단체·행사가 만들어지고 반려하면 `rejectionReason`이 신청자에게 보인다.
+- 부스 신청 서류 업로드·열람(`documents`, `documentId`/`fileName` 응답 확인됨), 서류 확인 상태.
+- 승인 취소: `POST …/applications/{id}/cancellation {revision, cancelReason?}` → `reviewStatus: CANCELLED`, 기록은 남고 부스는 부스 목록에서 사라진다.
+- 신청서 부가 항목(`affiliation`, `bankName`, `accountNumber`, `accountHolder`, `saleItems`, `requiredFacilities`)과 추가 질문(`additionalQuestions` / `additionalAnswers`), 모집 공고 `contactPhone`.
+- 공지 파일 첨부(`POST …/announcement-attachments`, 공지 `attachmentIds`, 읽기 응답의 `attachments[]`).
+- 스태프 본인 참여 목록(`/api/me/staff-memberships`)의 `affiliation`.
+- 스키마 이름 분리, `localhost:5173` CORS 허용.
+- ADMIN 계정: 일반 계정으로 가입한 뒤 백엔드가 ADMIN으로 변경(시험용 `demo_admin` 확인됨). 관리자 목록·상세 응답에 `applicant{nickname,email,phoneNumber}`가 있다.
 
-### 확인이 더 필요한 것
-1. **ADMIN 계정**: 관리자 화면과 승인 API는 ADMIN 권한 계정이 있어야 시험할 수 있어요. 시험용 `demo_admin`(비밀번호 `Demo1234!`)을 만들어 뒀으니 백엔드에서 ADMIN으로 바꿔 주세요. 바꾸면 `demo_org2`의 신청(샤랑제 2026)과 `demo_org3`의 신청(한빛제 2026)을 승인해 보고 서류 업로드까지 한 바퀴 확인해요.
-2. **서류 응답 필드**: 신청 상세의 `documents[]`에 올라간 파일을 가리키는 값(`documentId`, `fileName` 등)의 이름을 프론트가 `documentId`로 가정했어요. 서류가 있는 신청으로 확인 전이에요. 같은 서류를 다시 올릴 때 `revision` 쿼리에 넣는 값도 확인이 필요해요.
-3. **배포 주소를 CORS에 추가**: 서버는 `Origin` 헤더가 붙은 요청을 허용 목록에 있을 때만 받아요(2026-10-31 확인: 목록 밖은 403). 배포 주소가 정해지면 허용 출처에 넣어 주세요. 개발 서버는 `Origin`을 지우고 보내서 5173이 아니어도 동작해요.
-4. **승인 취소**: 승인된 신청을 "취소됨" 상태로 바꾸는 기능(삭제가 아니라 기록 유지)이 아직 없어요. 한번 정한 결정은 바꿀 수 없어요.
-5. **내 참여 목록의 소속**: `GET /api/me/staff-memberships` 응답에 `affiliation`(소속)이 없어서 스태프 본인 프로필에 소속이 비어요(주최자 명단에는 보여요).
-6. **초대 링크 주소 설정**: `FRONTEND_INVITE_BASE_URL`(= `boothrock.frontend.invite-base-url`)을 실제 프론트 주소로. (프론트가 우회하고 있어서 급하지 않음)
-7. 시험 계정과 행사 데이터는 시연에 쓰려고 그대로 둬요(`demo_*`, `cc_probe_*`).
+### 배포 후에 확인할 것 (후순위)
+1. **배포 주소를 CORS에 추가**: 서버는 `Origin` 헤더가 붙은 요청을 허용 목록에 있을 때만 받아요(2026-10-31 확인: 목록 밖은 403). 배포 주소가 정해지면 허용 출처에 넣어 주세요. 개발 서버는 `Origin`을 지우고 보내서 5173이 아니어도 동작해요.
+2. **초대 링크 주소 설정**: `FRONTEND_INVITE_BASE_URL`(= `boothrock.frontend.invite-base-url`)을 실제 프론트 주소로. (프론트가 우회하고 있어서 급하지 않음)
+3. 시험 계정과 행사 데이터는 시연에 쓰려고 그대로 둬요(`demo_*`, `cc_probe_*`).
 
 ## ③ 아직 서버에 없는 것 (이번 범위 밖, 화면은 없거나 샘플)
 
 | 기능 | 지금 프론트 상태 |
 |---|---|
 | 행사 운영 시간·오시는 길·문의처(운영본부 전화) | 값이 없으면 그 줄을 숨기고, "운영본부 연락"은 "연락처가 아직 등록되지 않았어요" 안내 |
-| 부스 운영 시간·SNS 링크 | 입력·표시 없음 (샘플에서만 보임) |
+| 부스 운영 시간·SNS 링크 | 입력·표시 없음 |
 | 후원사(스폰서)·홈 광고 | 일반 사용에서는 숨김, 샘플에서만 보임 |
 | 통계(조회 수·광고 노출/클릭) | "준비 중" 배지와 숫자 없는 빈 화면 (가짜 숫자는 지웠음) |
 | 결제 내역, 계정 정보 수정·비밀번호 변경 | 운영자 프로필 "결제 내역"은 샘플에서만, 계정 정보는 읽기 전용 |

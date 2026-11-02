@@ -1,7 +1,7 @@
 /* Booth management (organizer). Reuses the .om-app shell + variables from organizer-map.css. */
 .bm-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 14px;
   margin-bottom: 14px;
 }
@@ -488,4 +488,27 @@
   color: #3d7b70;
   text-decoration: underline;
   white-space: nowrap;
+}
+
+.bm-chip.is-cancelled {
+  background: #e8eeec;
+  color: #51655f;
+}
+
+.bm-btn-cancel {
+  border: 1px solid #d3dcd8;
+  background: #fff;
+  color: #b5533c;
+}
+
+.bm-cancel-reason {
+  width: 100%;
+  min-height: 72px;
+  margin: 4px 0 12px;
+  padding: 10px;
+  border: 1px solid #d3dcd8;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
 }

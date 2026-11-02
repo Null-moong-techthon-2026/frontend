@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { openEvent } from '../api/eventApi'
 import boothLogo from '../assets/booth-logo.png'
 import Toast from '../components/Toast'
 import { apiErrorMessage } from '../constants/errors'
 import { ORG_TYPE, ORG_TYPE_LABEL } from '../constants/eventOpening'
 import { endOfLocalDate, startOfLocalDate } from '../utils/date'
+import { useAuth } from '../context/useAuth'
+import { useMyOpenings } from '../utils/useMyOpenings'
 import { useToast } from '../utils/useToast'
 import './apply.css'
 
@@ -58,6 +60,8 @@ function Section({ no, title, children }) {
 export default function EventApplyPage() {
   const navigate = useNavigate()
   const { toast, notify } = useToast()
+  const { user } = useAuth()
+  const { openings } = useMyOpenings(user.id)
   const [form, setForm] = useState(EMPTY)
   const [showErrors, setShowErrors] = useState(false)
   const [sending, setSending] = useState(false)
@@ -66,6 +70,9 @@ export default function EventApplyPage() {
   const bind = (key) => ({ value: form[key], onChange: (e) => set(key)(e.target.value) })
   const errors = validate(form)
   const shown = (key) => (showErrors ? errors[key] : '')
+
+  // An application is already waiting for review: show it instead of sending a second one.
+  if (openings?.[0]?.status === 'PENDING') return <Navigate to="/pending" replace />
 
   const submit = async (e) => {
     e.preventDefault()

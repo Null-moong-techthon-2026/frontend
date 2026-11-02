@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { uploadImage } from '../api/eventApi'
+import { uploadAttachment } from '../api/noticeApi'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
 import Select from '../components/Select'
 import Toast from '../components/Toast'
@@ -23,7 +24,9 @@ import { useToast } from '../utils/useToast'
 import './notice.css'
 
 const AUDIENCES = Object.keys(NOTICE_AUDIENCE_LABEL)
-const EMPTY_FORM = { title: '', body: '', image: null, audiences: AUDIENCES, urgent: false }
+const EMPTY_FORM = { title: '', body: '', image: null, attachments: [], audiences: AUDIENCES, urgent: false }
+const ATTACHMENT_MAX = 5
+const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 const ACCEPT = NOTICE_IMAGE_EXTENSIONS.map((e) => `.${e}`).join(',')
 
 const STATUS_CLASS = {
@@ -47,6 +50,8 @@ export default function NoticePage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [fileError, setFileError] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [attachError, setAttachError] = useState('')
+  const [attaching, setAttaching] = useState(false)
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [query, setQuery] = useState('')
@@ -91,9 +96,12 @@ export default function NoticePage() {
   }
 
   const startEdit = () => {
-    const { title, body, image, audiences, urgent } = selected
-    setForm({ title, body, image, audiences, urgent })
+    // The list rows have no files yet: editing one before it is loaded would drop its attachments.
+    if (!selected.loaded) return notify('공지를 불러오는 중이에요. 잠시 뒤에 다시 눌러 주세요.', 'error')
+    const { title, body, image, attachments, audiences, urgent } = selected
+    setForm({ title, body, image, attachments, audiences, urgent })
     setFileError('')
+    setAttachError('')
     setMode('edit')
   }
 
@@ -125,8 +133,8 @@ export default function NoticePage() {
 
   // Saves the form with the given status and returns to the viewer.
   const submit = async (status) => {
-    const { title, body, image, audiences, urgent } = form
-    const fields = { title: title.trim(), body, image, audiences, urgent }
+    const { title, body, image, attachments, audiences, urgent } = form
+    const fields = { title: title.trim(), body, image, attachments, audiences, urgent }
     const saved = await attempt(
       () => saveNotice(isNew ? null : selectedId, fields, status),
       status === NOTICE_STATUS.PUBLISHED ? '공지를 게시했어요.' : '공지를 저장했어요.',
@@ -180,6 +188,23 @@ export default function NoticePage() {
       setFileError(apiErrorMessage(err))
     } finally {
       setUploading(false)
+    }
+  }
+
+  // Files (PDF and the like): up to five, uploaded as soon as they are chosen and linked on save.
+  const addAttachment = async (file) => {
+    if (!file || attaching) return
+    if (form.attachments.length >= ATTACHMENT_MAX) return setAttachError(`파일은 최대 ${ATTACHMENT_MAX}개까지 붙일 수 있어요.`)
+    if (file.size > ATTACHMENT_MAX_BYTES) return setAttachError(`'${file.name}'은(는) 10MB를 넘어요.`)
+    setAttachError('')
+    setAttaching(true)
+    try {
+      const saved = await uploadAttachment(event.id, file)
+      patchForm({ attachments: [...form.attachments, { id: saved.attachmentId, name: saved.fileName, size: saved.sizeBytes, url: saved.readUrl }] })
+    } catch (err) {
+      setAttachError(apiErrorMessage(err))
+    } finally {
+      setAttaching(false)
     }
   }
 
@@ -346,6 +371,41 @@ export default function NoticePage() {
                 )}
                 {fileError && <p className="nt-error">{fileError}</p>}
 
+                <span className="nt-label">파일 첨부 (선택)</span>
+                {form.attachments.length > 0 && (
+                  <ul className="nt-files">
+                    {form.attachments.map((a) => (
+                      <li key={a.id}>
+                        <Icon name="image" />
+                        <span className="nt-file-name">{a.name}</span>
+                        {a.size != null && <span className="nt-file-size">{formatFileSize(a.size)}</span>}
+                        <button type="button" className="om-chip" onClick={() => patchForm({ attachments: form.attachments.filter((x) => x.id !== a.id) })}>
+                          삭제
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {form.attachments.length < ATTACHMENT_MAX && (
+                  <label className="nt-drop">
+                    <input
+                      type="file"
+                      className="om-file-input"
+                      disabled={attaching}
+                      onChange={(e) => {
+                        addAttachment(e.target.files[0])
+                        e.target.value = ''
+                      }}
+                    />
+                    <Icon name="upload" />
+                    <span>
+                      <strong>{attaching ? '올리는 중…' : '파일을 선택'}</strong>
+                      <small>최대 10MB · 최대 {ATTACHMENT_MAX}개 · 읽는 사람이 열어 볼 수 있어요</small>
+                    </span>
+                  </label>
+                )}
+                {attachError && <p className="nt-error">{attachError}</p>}
+
                 <span className="nt-label">공지 대상</span>
                 <div className="nt-audiences">
                   {AUDIENCES.map((a) => (
@@ -433,6 +493,19 @@ export default function NoticePage() {
                 <div className="nt-view-body">{selected.body}</div>
                 {selected.image && (
                   <img className="nt-view-image" src={selected.image.url} alt="공지 이미지" />
+                )}
+                {selected.attachments?.length > 0 && (
+                  <ul className="nt-files">
+                    {selected.attachments.map((a) => (
+                      <li key={a.id}>
+                        <Icon name="image" />
+                        <a className="nt-file-name" href={a.url} target="_blank" rel="noreferrer">
+                          {a.name}
+                        </a>
+                        {a.size != null && <span className="nt-file-size">{formatFileSize(a.size)}</span>}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
 

@@ -35,7 +35,10 @@ export default function AdminApplicationsPage() {
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
 
+  const isAdmin = user.role === ROLE.ADMIN
+
   useEffect(() => {
+    if (!isAdmin) return undefined // other accounts are sent away below; do not call the admin API for them
     let alive = true
     listAdminOpenings({ status: tab, page: 0, size: 100 })
       .then((page) => alive && (setRows(page.content), setError(null)))
@@ -43,10 +46,10 @@ export default function AdminApplicationsPage() {
     return () => {
       alive = false
     }
-  }, [tab, version, user])
+  }, [tab, version, isAdmin])
 
   const reload = useCallback(() => setVersion((v) => v + 1), [])
-  if (user.role !== ROLE.ADMIN) return <Navigate to="/" replace />
+  if (!isAdmin) return <Navigate to="/" replace />
 
   const selected = rows?.find((r) => r.id === selectedId) ?? null
   const pending = selected?.status === 'PENDING'
@@ -162,7 +165,19 @@ export default function AdminApplicationsPage() {
                   <dt>장소</dt>
                   <dd>{selected.venue}</dd>
                   <dt>신청자</dt>
-                  <dd>{selected.applicantNickname ?? selected.applicantName ?? selected.applicantAccountId}</dd>
+                  <dd>{selected.applicant?.nickname ?? selected.applicantAccountId}</dd>
+                  {selected.applicant?.email && (
+                    <>
+                      <dt>이메일</dt>
+                      <dd>{selected.applicant.email}</dd>
+                    </>
+                  )}
+                  {selected.applicant?.phoneNumber && (
+                    <>
+                      <dt>연락처</dt>
+                      <dd>{selected.applicant.phoneNumber}</dd>
+                    </>
+                  )}
                   <dt>접수</dt>
                   <dd>{dateTime(selected.createdAt)}</dd>
                   {selected.reviewedAt && (

@@ -30,6 +30,8 @@ export function toRecruit(raw) {
       required: d.isRequired,
       categories: d.applicableCategoryCodes,
     })),
+    contactPhone: raw.contactPhone ?? '',
+    questions: (raw.additionalQuestions ?? []).map((q) => ({ id: q.id, label: q.question, required: q.isRequired })),
     deadline: instantToLocalDateTime(raw.closesAt), // 'YYYY-MM-DDTHH:mm' or ''
     target: raw.targetBoothCount ?? null,
     revision: raw.revision,
@@ -48,6 +50,13 @@ export function toRecruitRequest(recruit, revision) {
     allowedCategoryCodes: recruit.categories,
     participationFeeKrw: recruit.feeKrw,
     feeNote: recruit.feeNote,
+    contactPhone: recruit.contactPhone ?? '',
+    additionalQuestions: (recruit.questions ?? []).map((q, i) => ({
+      ...(UUID.test(q.id) ? { id: q.id } : {}),
+      question: q.label,
+      isRequired: q.required,
+      sortOrder: i,
+    })),
     documentRequirements: recruit.documents.map((d, i) => ({
       ...(UUID.test(d.id) ? { id: d.id } : {}),
       name: d.label,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import * as boothApi from '../api/boothApi'
 import {
   BOOTH_CATEGORY,
@@ -40,6 +40,7 @@ const STATUS_CLASS = {
   [BOOTH_STATUS.PENDING]: 'is-review',
   [BOOTH_STATUS.APPROVED]: 'is-approved',
   [BOOTH_STATUS.REJECTED]: 'is-rejected',
+  [BOOTH_STATUS.CANCELLED]: 'is-cancelled',
 }
 
 function StatusChip({ status }) {
@@ -173,6 +174,8 @@ export default function BoothManagePage() {
   const [copied, setCopied] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [confirm, setConfirm] = useState(null) // null | 'APPROVED' | 'REJECTED'
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const [busy, setBusy] = useState(false)
 
   const [list, setList] = useState(null) // null until the first load; { content, totalElements, totalPages }
@@ -317,6 +320,25 @@ export default function BoothManagePage() {
     }
   }
 
+  const cancelApproval = async () => {
+    setCancelOpen(false)
+    if (busy) return
+    setBusy(true)
+    try {
+      await boothApi.cancelApplication(eventId, selected.applicationId, {
+        revision: selected.revision,
+        ...(cancelReason.trim() ? { cancelReason: cancelReason.trim() } : {}),
+      })
+      notify('승인을 취소했어요. 신청 기록은 남고 부스는 비활성화돼요.')
+      setCancelReason('')
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+    } finally {
+      setBusy(false)
+      refreshAll()
+    }
+  }
+
   // The code is readable only when it is issued, so a copy without a fresh code issues a new one
   // (which ends the previous one).
   const copyInvite = async () => {
@@ -388,6 +410,12 @@ export default function BoothManagePage() {
           <span>반려</span>
           <strong className="is-rejected">{summary.rejected}</strong>
         </div>
+        {summary.cancelled > 0 && (
+          <div className="bm-stat">
+            <span>취소됨</span>
+            <strong>{summary.cancelled}</strong>
+          </div>
+        )}
       </div>
 
       <div className="bm-grid">
@@ -589,7 +617,65 @@ export default function BoothManagePage() {
                           <dd>{selected.applicant.phoneNumber}</dd>
                           <dt>이메일</dt>
                           <dd>{selected.applicant.email}</dd>
+                          {selected.affiliation && (
+                            <>
+                              <dt>소속</dt>
+                              <dd>{selected.affiliation}</dd>
+                            </>
+                          )}
                         </dl>
+
+                        {(selected.bankName || selected.accountNumber || selected.saleItems || selected.requiredFacilities) && (
+                          <>
+                            <h4>운영 정보</h4>
+                            <dl className="bm-dl">
+                              {(selected.bankName || selected.accountNumber) && (
+                                <>
+                                  <dt>계좌 정보</dt>
+                                  <dd>{[selected.bankName, selected.accountNumber, selected.accountHolder].filter(Boolean).join(' ')}</dd>
+                                </>
+                              )}
+                              {selected.saleItems && (
+                                <>
+                                  <dt>판매 품목</dt>
+                                  <dd>{selected.saleItems}</dd>
+                                </>
+                              )}
+                              {selected.requiredFacilities && (
+                                <>
+                                  <dt>필요 설비</dt>
+                                  <dd>{selected.requiredFacilities}</dd>
+                                </>
+                              )}
+                            </dl>
+                          </>
+                        )}
+
+                        {selected.additionalAnswers?.length > 0 && (
+                          <>
+                            <h4>추가 질문 답변</h4>
+                            <dl className="bm-dl">
+                              {selected.additionalAnswers.map((a) => (
+                                <Fragment key={a.questionId}>
+                                  <dt>{a.question}</dt>
+                                  <dd>{a.answer || '—'}</dd>
+                                </Fragment>
+                              ))}
+                            </dl>
+                          </>
+                        )}
+
+                        {selected.reviewStatus === BOOTH_STATUS.CANCELLED && (
+                          <>
+                            <h4>취소 정보</h4>
+                            <dl className="bm-dl">
+                              <dt>취소 시각</dt>
+                              <dd>{longDate(selected.cancelledAt)}</dd>
+                              <dt>취소 사유</dt>
+                              <dd>{selected.cancelReason || '—'}</dd>
+                            </dl>
+                          </>
+                        )}
                       </>
                     )}
 
@@ -680,12 +766,23 @@ export default function BoothManagePage() {
                       </div>
                       <p className="bm-actions-hint">승인이나 반려는 한 번 정하면 되돌릴 수 없어요.</p>
                     </>
+                  ) : selected.reviewStatus === BOOTH_STATUS.APPROVED ? (
+                    <>
+                      <p className="bm-actions-hint">승인된 신청이에요. 부스 번호 {selected.boothCode ?? ''}</p>
+                      <div className="bm-actions">
+                        <button type="button" className="bm-btn bm-btn-cancel" disabled={busy} onClick={() => {
+                            setCancelReason('')
+                            setCancelOpen(true)
+                          }}>
+                          승인 취소
+                        </button>
+                      </div>
+                      <p className="bm-actions-hint">참가 포기 등으로 취소하면 신청 기록은 남고 부스는 비활성화돼요.</p>
+                    </>
                   ) : (
                     <p className="bm-actions-hint">
-                      {selected.reviewStatus === BOOTH_STATUS.APPROVED
-                        ? `승인된 신청이에요. 부스 번호 ${selected.boothCode ?? ''}`
-                        : '반려된 신청이에요.'}{' '}
-                      결정은 되돌릴 수 없어요.
+                      {selected.reviewStatus === BOOTH_STATUS.CANCELLED ? '승인이 취소된 신청이에요.' : '반려된 신청이에요.'} 결정은 되돌릴 수
+                      없어요.
                     </p>
                   )}
                 </>
@@ -733,6 +830,30 @@ export default function BoothManagePage() {
                 onClick={decide}
               >
                 {confirm === 'APPROVED' ? '승인' : '반려'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelOpen && (
+        <div className="om-confirm-overlay" onClick={() => setCancelOpen(false)}>
+          <div className="om-confirm" role="alertdialog" aria-modal="true" aria-labelledby="bm-cancel-title" onClick={(e) => e.stopPropagation()}>
+            <h2 id="bm-cancel-title">승인을 취소할까요?</h2>
+            <p>신청 기록은 그대로 남고, 부스는 비활성화돼 방문객 화면에서 사라져요. 한번 취소하면 되돌릴 수 없어요.</p>
+            <textarea
+              className="bm-cancel-reason"
+              placeholder="취소 사유 (선택)"
+              maxLength={2000}
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+            />
+            <div className="om-confirm-actions">
+              <button type="button" className="om-btn om-btn-outline" onClick={() => setCancelOpen(false)}>
+                닫기
+              </button>
+              <button type="button" className="om-btn om-btn-danger" onClick={cancelApproval}>
+                승인 취소
               </button>
             </div>
           </div>

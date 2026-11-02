@@ -1,13 +1,16 @@
 // Preview mode: opening any page with ?demo=1 (or ?demo=2) shows the wireframe's sample content (비룡제 2026,
 // 달빛 떡볶이, ...) instead of the server's data, so every screen can be looked at while the
 // backend has no data yet. It is remembered for the browser tab.
-// Normal use never touches it: without the flag only real server data is shown.
+// Normal use never touches it: without the flag only real server data is shown. The preview exists only
+// in `npm run dev`: the built (deployed) site ignores ?demo and never shows sample data.
 
 const KEY = 'boothluck.demo'
+const PREVIEW_ALLOWED = import.meta.env.DEV
 
 // ?demo=1 -> preview (an account that already took part in the event); ?demo=2 -> preview of a
 // brand-new account (no event joined yet); ?demo=0 -> off. Remembered for the browser tab.
 function flag() {
+  if (!PREVIEW_ALLOWED) return null
   try {
     const param = new URLSearchParams(window.location.search).get('demo')
     if (param === '1' || param === '2') sessionStorage.setItem(KEY, param)

@@ -20,6 +20,7 @@ import {
 import { useBooths } from '../context/useBooths'
 import { useEvent } from '../context/useEvent'
 import { useLeaveGuard } from '../context/useLeaveGuard'
+import { useInvitation } from '../context/useInvitation'
 import { useRecruit } from '../context/useRecruit'
 import { formatDateTime } from '../utils/date'
 import { fileExtension, formatFileSize } from '../utils/file'
@@ -112,6 +113,7 @@ function RecruitEditor({ event, recruit }) {
   const navigate = useNavigate()
   const { updateEvent } = useEvent()
   const { saveRecruit, setPublished } = useRecruit()
+  const { invitation } = useInvitation()
   const { summary } = useBooths()
   const { toast, notify } = useToast()
 
@@ -185,6 +187,10 @@ function RecruitEditor({ event, recruit }) {
       // Show what was saved (new documents now carry their server-made ids) as the new baseline.
       setForm(toForm(savedEvent, savedRecruit))
       setJustSaved(true)
+      // A code that lasts longer than the recruitment is refused by the server: ask for a new one.
+      if (invitation?.active && savedRecruit.closesAt && new Date(invitation.expiresAt) > new Date(savedRecruit.closesAt)) {
+        notify('마감일을 앞당겼어요. 이미 보낸 초대 링크는 신청이 안 될 수 있으니 대시보드에서 초대 코드를 다시 발급해 주세요.', 'error')
+      }
       setTimeout(() => setJustSaved(false), 2500)
       return true
     } catch (err) {

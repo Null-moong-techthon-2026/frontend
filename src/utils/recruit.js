@@ -33,6 +33,7 @@ export function toRecruit(raw) {
     contactPhone: raw.contactPhone ?? '',
     questions: (raw.additionalQuestions ?? []).map((q) => ({ id: q.id, label: q.question, required: q.isRequired })),
     deadline: instantToLocalDateTime(raw.closesAt), // 'YYYY-MM-DDTHH:mm' or ''
+    closesAt: raw.closesAt ?? null, // the exact instant
     target: raw.targetBoothCount ?? null,
     revision: raw.revision,
   }

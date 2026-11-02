@@ -159,7 +159,7 @@ function BoothCreateModal({ onCreate, onClose }) {
 export default function BoothManagePage() {
   const { event } = useEvent()
   const { summary, refreshSummary } = useBooths()
-  const { invitation, issued, issue } = useInvitation()
+  const { invitation, issued, stale, issue } = useInvitation()
   const { toast, notify } = useToast()
   const eventId = event.id
 
@@ -343,12 +343,14 @@ export default function BoothManagePage() {
   // (which ends the previous one).
   const copyInvite = async () => {
     try {
-      let url = issued?.inviteUrl
+      let url = stale ? null : issued?.inviteUrl
       if (!url) {
         if (
           invitation?.active &&
           !window.confirm(
-            '초대 코드는 발급할 때만 확인할 수 있어요. 새로 발급하면 이전 초대 링크는 사용할 수 없게 돼요. 새로 발급할까요?',
+            stale
+              ? '모집 마감일이 바뀌어서 이전 초대 링크로는 신청이 안 돼요. 새로 발급할까요?'
+              : '초대 코드는 발급할 때만 확인할 수 있어요. 새로 발급하면 이전 초대 링크는 사용할 수 없게 돼요. 새로 발급할까요?',
           )
         ) {
           return

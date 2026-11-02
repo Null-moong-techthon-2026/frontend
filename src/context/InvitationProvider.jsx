@@ -14,6 +14,9 @@ import { useRecruit } from './useRecruit'
 //
 //   invitation  null (no invitation yet) | { id, createdAt, expiresAt, active }
 //   issued      null | { code, inviteUrl, expiresAt }    the last code issued in this session
+//   stale       true when the invitation would last longer than the recruitment: the server then
+//               refuses the code (404 when applying) although the invitation still reads as active,
+//               e.g. after the deadline was moved earlier. A new code fixes it.
 //   loading
 //   issue()     issues a new code that lasts until the recruitment deadline; the old one stops
 //               working. Throws ApiError, or Error('NO_DEADLINE') when no deadline is saved yet.
@@ -27,6 +30,9 @@ export default function InvitationProvider({ children }) {
   const { data, loading, setData } = useEventData(eventId, eventApi.getInvitation)
 
   const issued = issuedState.eventId === eventId ? issuedState.value : null
+  const closesAt = recruit?.closesAt ?? null
+  const invitationData = data?.invitation ?? null
+  const stale = Boolean(invitationData?.active && closesAt && new Date(invitationData.expiresAt) > new Date(closesAt))
 
   const issue = useCallback(async () => {
     if (!deadline) throw new Error('NO_DEADLINE')
@@ -50,8 +56,8 @@ export default function InvitationProvider({ children }) {
   }, [eventId, setData])
 
   const value = useMemo(
-    () => ({ invitation: data?.invitation ?? null, issued, loading, issue, revoke }),
-    [data, issued, loading, issue, revoke],
+    () => ({ invitation: invitationData, issued, stale, loading, issue, revoke }),
+    [invitationData, issued, stale, loading, issue, revoke],
   )
   return <InvitationContext.Provider value={value}>{children}</InvitationContext.Provider>
 }

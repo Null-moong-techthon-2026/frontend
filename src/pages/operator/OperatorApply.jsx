@@ -144,7 +144,11 @@ export default function OperatorApply() {
       }
       navigate('/operator/invite', { replace: true, state: { applied: recruitment.event.name } })
     } catch (err) {
-      setMessage(apiErrorMessage(err))
+      setMessage(
+        state?.code && err.status === 404
+          ? '이 초대 링크로는 신청할 수 없어요. 주최자에게 새 초대 링크를 받아 주세요.'
+          : apiErrorMessage(err),
+      )
     } finally {
       setBusy(false)
     }

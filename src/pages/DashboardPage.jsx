@@ -74,7 +74,7 @@ export default function DashboardPage() {
   const { summary } = useBooths()
   const { event, updateEvent } = useEvent()
   const { recruit } = useRecruit()
-  const { invitation, issued, issue, revoke } = useInvitation()
+  const { invitation, issued, stale, issue, revoke } = useInvitation()
   const { toast, notify } = useToast()
   const recruitStatus = getRecruitStatus(recruit?.published ?? false, recruit?.deadline ?? '')
   const [copied, setCopied] = useState(null)
@@ -363,6 +363,14 @@ export default function DashboardPage() {
             ) : (
               <>
                 <p className="db-hint">
+                  {stale && (
+                    <>
+                      <strong className="db-warn">
+                        모집 마감일이 바뀌어서 지금 초대 코드로는 신청이 안 될 수 있어요. 새로 발급해 주세요.
+                      </strong>
+                      <br />
+                    </>
+                  )}
                   {!invitation
                     ? '아직 발급한 초대 코드가 없어요.'
                     : invitation.active

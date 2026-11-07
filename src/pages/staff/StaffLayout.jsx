@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { getEvent, getEventContactPhone } from '../../api/eventApi'
 import { listMyStaffMemberships } from '../../api/staffApi'
 import MobileLayout from '../../components/mobile/MobileLayout'
@@ -43,7 +43,8 @@ async function loadEvent(mine) {
 //   { user, mine (the membership or null), state, event, reload }
 // where state is 'none' (not joined) | 'pending' (waiting for approval) | 'rejected' | 'approved'.
 export default function StaffLayout() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   // Preview mode: ?demo=1 is an approved staff member, ?demo=2 a newcomer.
   useState(() => {
     if (isDemo()) setDemoNewcomer(isDemoNewcomer())
@@ -69,7 +70,15 @@ export default function StaffLayout() {
   ]
 
   return (
-    <MobileLayout chip="스태프" tabs={tabs} bellTo="/staff/notices">
+    <MobileLayout
+      chip="스태프"
+      tabs={tabs}
+      bellTo="/staff/notices"
+      onLogout={async () => {
+        await logout()
+        navigate('/login', { replace: true })
+      }}
+    >
       {memberships && (state === 'none' || event) ? (
         <Outlet context={{ user, mine, state, event, reload }} />
       ) : (

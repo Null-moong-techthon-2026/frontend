@@ -97,7 +97,7 @@ export default function AdminApplicationsPage() {
       </header>
 
       <main className="ad-main">
-        <h1>행사 개설 신청</h1>
+        <h1>행사 개설 심사</h1>
         <p className="ad-lead">주최자가 낸 신청을 확인하고 승인하거나 반려해요. 승인하면 그 자리에서 단체와 행사가 만들어져요.</p>
 
         <div className="ad-tabs" role="tablist">

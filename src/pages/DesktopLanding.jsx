@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import boothLogo from '../assets/booth-logo.png'
 import LandingMockup from '../components/LandingMockup'
-import { homePathFor } from '../utils/role'
+import { canOpen, homePathFor } from '../utils/role'
 import { useAuth } from '../context/useAuth'
 import './landing.css'
 
@@ -79,7 +79,16 @@ const FEATURES = [
 export default function DesktopLanding() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const apply = () => navigate(APPLY_PATH)
+  // A booth operator / staff / admin account cannot apply to open an event.
+  const [notice, setNotice] = useState('')
+  const apply = () => {
+    if (user && !canOpen(user, APPLY_PATH)) {
+      setNotice('행사 개설은 축제 주최자 계정으로만 신청할 수 있어요. 주최자 계정으로 로그인해 주세요.')
+      setTimeout(() => setNotice(''), 5000)
+      return
+    }
+    navigate(APPLY_PATH)
+  }
   // The header is see-through over the hero and only gets a background once the page scrolls.
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -118,6 +127,11 @@ export default function DesktopLanding() {
             </button>
           )}
         </nav>
+        {notice && (
+          <p className="lp-notice" role="alert">
+            {notice}
+          </p>
+        )}
       </header>
 
       <main>

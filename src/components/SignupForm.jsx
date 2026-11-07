@@ -76,6 +76,10 @@ export default function SignupForm({ type, title, submitLabel, phoneVerification
     setShowErrors(true)
     if (hasErrors) return
     if (idCheck === 'taken') return
+    if (idCheck !== 'available') {
+      setServerError('아이디 중복 확인을 해 주세요.')
+      return
+    }
 
     setServerError('')
     setSubmitting(true)

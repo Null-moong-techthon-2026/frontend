@@ -496,3 +496,13 @@
   gap: 6px;
   font-size: 14px;
 }
+
+/* every stock-level button the same width, so the rows line up */
+.op-level {
+  justify-content: center;
+  min-width: 92px;
+}
+.op-item .mb-card-row {
+  align-items: center;
+  gap: 10px;
+}

@@ -174,9 +174,8 @@
   display: none;
 }
 
-.form-field-row input::-webkit-textfield-decoration-container {
-  display: none;
-}
+/* Do NOT hide ::-webkit-textfield-decoration-container here: in Safari that is the box the text is
+   typed into, so hiding it makes the field impossible to type in. */
 
 .form-field-row--merged {
   border: 1px solid var(--border);

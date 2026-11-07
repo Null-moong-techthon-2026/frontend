@@ -151,7 +151,11 @@ function RecruitEditor({ event, recruit }) {
   const dirty = !sameForm(form, saved)
 
   const errors = {
-    deadline: form.deadline ? '' : '모집 마감일을 선택해 주세요.',
+    deadline: !form.deadline
+      ? '모집 마감일을 선택해 주세요.'
+      : event.endDate && form.deadline.slice(0, 10) > event.endDate
+        ? `모집 마감일은 행사 종료일(${event.endDate.replaceAll('-', '.')})보다 늦을 수 없어요.`
+        : '',
     target: isValidTarget(form.target.trim())
       ? ''
       : `모집 부스 수는 1~${RECRUIT_TARGET_MAX} 사이 숫자로 입력해 주세요.`,
@@ -440,6 +444,7 @@ function RecruitEditor({ event, recruit }) {
                 type="datetime-local"
                 className="rc-input"
                 value={form.deadline}
+                max={event.endDate ? `${event.endDate}T23:59` : undefined}
                 onChange={(e) => patch({ deadline: e.target.value })}
               />
               {shown('deadline') && <p className="rc-error">{shown('deadline')}</p>}
@@ -480,10 +485,10 @@ function RecruitEditor({ event, recruit }) {
             </div>
           </div>
 
-          <div className="rc-row rc-row-pair">
+          <div className="rc-row">
             <label htmlFor="rc-fee">참가비</label>
             <div>
-              <div className="rc-suffix">
+              <div className="rc-suffix rc-fee-amount">
                 <input
                   id="rc-fee"
                   className="rc-input"
@@ -497,6 +502,9 @@ function RecruitEditor({ event, recruit }) {
               </div>
               {shown('fee') && <p className="rc-error">{shown('fee')}</p>}
             </div>
+          </div>
+
+          <div className="rc-row">
             <label htmlFor="rc-fee-note">참가비 안내</label>
             <div className="rc-fee">
               <input
@@ -507,7 +515,7 @@ function RecruitEditor({ event, recruit }) {
                 value={form.feeNote}
                 onChange={(e) => patch({ feeNote: e.target.value })}
               />
-              <small>{RECRUIT_FEE_NOTE}</small>
+              {form.feeNote !== RECRUIT_FEE_NOTE && <small>기본 문구: {RECRUIT_FEE_NOTE}</small>}
             </div>
           </div>
 
@@ -721,7 +729,7 @@ function RecruitEditor({ event, recruit }) {
             className="om-btn om-btn-primary om-btn-block rc-go"
             onClick={() => navigate('/organizer/booths')}
           >
-            부스 모집 바로가기
+            부스 관리 바로가기
           </button>
           <p className="rc-summary-note">미리보기 버튼으로 운영자에게 보이는 공고를 확인하세요.</p>
         </section>

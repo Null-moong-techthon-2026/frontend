@@ -33,6 +33,8 @@ import {
   DEMO_RECRUITING,
 } from '../dummy/demoData'
 import { demoDelay, isDemo, isDemoNewcomer } from '../utils/demo'
+import { todayYmd } from '../utils/eventDays'
+import { cleanInviteCode } from '../utils/inviteCode'
 import { toEvent } from '../utils/event'
 import * as boothApi from './boothApi'
 import { get, patch, post, put, query } from './client'
@@ -101,12 +103,16 @@ export async function listRecruitingEvents() {
   if (isDemo()) return demoDelay(DEMO_RECRUITING.map(demoRecruitment))
   const page = await get(`/api/public/events${query({ recruitmentStatus: 'OPEN', page: 0, size: 50 })}`)
   const results = await Promise.allSettled(page.content.map((e) => getRecruitment(e.id)))
-  return results.filter((r) => r.status === 'fulfilled').map((r) => r.value)
+  const today = todayYmd()
+  return results
+    .filter((r) => r.status === 'fulfilled')
+    .map((r) => r.value)
+    .filter((r) => !r.event.endDate || r.event.endDate >= today) // an event that is over takes no applications
 }
 
 // The recruitment notice behind an invitation code (404 when the code is wrong, expired or ended).
 export async function resolveInvitation(code) {
-  const trimmed = code.trim()
+  const trimmed = cleanInviteCode(code)
   if (isDemo()) {
     if (trimmed.length < 4) throw Object.assign(new Error('not found'), { status: 404, code: 'RESOURCE_NOT_FOUND' })
     return demoDelay(demoRecruitment(DEMO_RECRUITING[0]))

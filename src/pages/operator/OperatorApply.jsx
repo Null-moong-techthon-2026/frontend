@@ -6,6 +6,7 @@ import MIcon from '../../components/mobile/MobileIcons'
 import { LoadingBlock } from '../../components/mobile/MobileUi'
 import { BOOTH_CATEGORY, BOOTH_CATEGORY_LABEL } from '../../constants/booth'
 import { apiErrorMessage } from '../../constants/errors'
+import { cleanInviteCode } from '../../utils/inviteCode'
 import { dateRange } from '../../utils/mobileFormat'
 import { useAsync } from '../../utils/useAsync'
 import { normalizePhone, validateEmail, validatePhone } from '../../utils/validators'
@@ -95,7 +96,13 @@ export default function OperatorApply() {
 
   const submit = async () => {
     setShowErrors(true)
-    if (hasErrors || busy) return
+    if (hasErrors || busy) {
+      if (hasErrors) {
+        setMessage(creating && errors.newName ? '부스 프로필을 선택하거나, 새 부스 이름을 입력해 주세요.' : '입력하지 않았거나 확인이 필요한 항목이 있어요.')
+        setTimeout(() => document.querySelector('.mb-field .mb-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 0)
+      }
+      return
+    }
     setBusy(true)
     setMessage('')
     try {
@@ -118,7 +125,7 @@ export default function OperatorApply() {
             applicantName: form.name.trim(),
             applicantPhone: normalizePhone(form.phone),
             applicantEmail: form.email.trim(),
-            ...(state?.code ? { invitationCode: state.code } : {}),
+            ...(state?.code ? { invitationCode: cleanInviteCode(state.code) } : {}),
             ...optional({
               affiliation: form.affiliation,
               bankName: form.bankName,

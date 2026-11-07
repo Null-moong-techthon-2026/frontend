@@ -183,6 +183,9 @@ function ApprovedHome() {
 
   // The clock records today, whatever day of the event the schedule is showing.
   const record = attendance?.records.find((r) => r.date === todayYmd()) ?? null
+  // The server says what is possible now; without that answer, one record a day: in, then out.
+  const canIn = Boolean(attendance) && (attendance.canClockIn ?? !record)
+  const canOut = Boolean(attendance) && (attendance.canClockOut ?? Boolean(record && !record.out))
   const recent = [...(notices ?? [])].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 2)
 
   const punch = async (call) => {
@@ -240,13 +243,14 @@ function ApprovedHome() {
           </span>
         </div>
         <div className="mb-btn-row">
-          <button type="button" className="mb-btn is-primary" disabled={busy || !attendance || Boolean(record)} onClick={() => punch(clockIn)}>
+          <button type="button" className="mb-btn is-primary" disabled={busy || !canIn} onClick={() => punch(clockIn)}>
             출근하기
           </button>
-          <button type="button" className="mb-btn is-outline" disabled={busy || !record || Boolean(record.out)} onClick={() => punch(clockOut)}>
+          <button type="button" className="mb-btn is-outline" disabled={busy || !canOut} onClick={() => punch(clockOut)}>
             퇴근하기
           </button>
         </div>
+        {record?.out && !canIn && <p className="mb-muted sa-caption">오늘은 이미 퇴근했어요. 같은 날 다시 출근하려면 주최측에 문의해 주세요.</p>}
         {message && <p className="mb-error">{message}</p>}
       </div>
 

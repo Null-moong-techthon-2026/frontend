@@ -5,13 +5,16 @@ import boothLogo from '../assets/booth-logo.png'
 import Toast from '../components/Toast'
 import { apiErrorMessage } from '../constants/errors'
 import { ORG_TYPE, ORG_TYPE_LABEL } from '../constants/eventOpening'
-import { endOfLocalDate, startOfLocalDate } from '../utils/date'
+import { endOfLocalDate, nowIso, startOfLocalDate } from '../utils/date'
 import { useAuth } from '../context/useAuth'
+import { canOpen, homePathFor } from '../utils/role'
 import { useMyOpenings } from '../utils/useMyOpenings'
 import { useToast } from '../utils/useToast'
 import './apply.css'
 
 const EMPTY = { orgName: '', orgType: ORG_TYPE.STUDENT, eventName: '', startDate: '', endDate: '', venue: '' }
+
+const today = () => nowIso().slice(0, 10) // local 'YYYY-MM-DD'
 
 // One message per field that is wrong; '' when fine.
 function validate(f) {
@@ -21,9 +24,11 @@ function validate(f) {
     eventName: required(f.eventName, '행사 이름을 입력해 주세요.'),
     period: !f.startDate || !f.endDate
       ? '행사 기간을 입력해 주세요.'
-      : f.endDate < f.startDate
-        ? '종료일은 시작일보다 빠를 수 없어요.'
-        : '',
+      : f.startDate < today()
+        ? '이미 지난 날짜는 시작일로 고를 수 없어요.'
+        : f.endDate < f.startDate
+          ? '종료일은 시작일보다 빠를 수 없어요.'
+          : '',
     venue: required(f.venue, '장소를 입력해 주세요.'),
   }
 }
@@ -70,6 +75,9 @@ export default function EventApplyPage() {
   const bind = (key) => ({ value: form[key], onChange: (e) => set(key)(e.target.value) })
   const errors = validate(form)
   const shown = (key) => (showErrors ? errors[key] : '')
+
+  // Only organizer accounts open events: anyone else (operator, staff, admin) goes to their own home.
+  if (!canOpen(user, '/apply')) return <Navigate to={homePathFor(user)} replace />
 
   // An application is already waiting for review: show it instead of sending a second one.
   if (openings?.[0]?.status === 'PENDING') return <Navigate to="/pending" replace />
@@ -135,9 +143,9 @@ export default function EventApplyPage() {
             </Field>
             <Field label="행사 기간" error={shown('period')}>
               <div className="ap-range">
-                <input type="date" value={form.startDate} onChange={(e) => set('startDate')(e.target.value)} aria-label="시작일" />
+                <input type="date" value={form.startDate} min={today()} onChange={(e) => set('startDate')(e.target.value)} aria-label="시작일" />
                 <span>~</span>
-                <input type="date" value={form.endDate} min={form.startDate} onChange={(e) => set('endDate')(e.target.value)} aria-label="종료일" />
+                <input type="date" value={form.endDate} min={form.startDate || today()} onChange={(e) => set('endDate')(e.target.value)} aria-label="종료일" />
               </div>
             </Field>
             <Field label="장소" error={shown('venue')}>

@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import AuthHeader from '../components/AuthHeader'
 import ScreenShell from '../components/ScreenShell'
 import { apiErrorMessage } from '../constants/errors'
 import { useAuth } from '../context/useAuth'
 import { useEvent } from '../context/useEvent'
+import { canOpen, homePathFor } from '../utils/role'
 import { useMyOpenings } from '../utils/useMyOpenings'
 
 const formatDate = (iso) => (iso ? iso.slice(0, 10).replaceAll('-', '.') : '')
@@ -23,6 +24,8 @@ export default function EventPendingPage() {
   useEffect(() => {
     if (status === 'ready') navigate('/organizer/dashboard', { replace: true })
   }, [status, navigate])
+
+  if (!canOpen(user, '/pending')) return <Navigate to={homePathFor(user)} replace />
 
   const check = () => {
     reload()

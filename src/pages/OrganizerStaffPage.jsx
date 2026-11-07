@@ -10,6 +10,8 @@ import {
   listShifts,
   listStaff,
   replaceShiftMembers,
+  updateShift,
+  deleteShift,
   revokeStaffInvitation,
   updateStaffMember,
 } from '../api/staffApi'
@@ -18,7 +20,7 @@ import Toast from '../components/Toast'
 import { apiErrorMessage } from '../constants/errors'
 import { useEvent } from '../context/useEvent'
 import { STAFF_ROLE, STAFF_ROLE_LABEL, STAFF_STATUS, STAFF_STATUS_LABEL, countBy } from '../dummy/staffStore'
-import { eventDays } from '../utils/eventDays'
+import { eventDays, todayYmd } from '../utils/eventDays'
 import { useAsync } from '../utils/useAsync'
 import { useToast } from '../utils/useToast'
 import './staff.css'
@@ -26,6 +28,7 @@ import './staff.css'
 const TABS = [
   ['roster', '명단', '행사에 함께할 인원을 초대하고 역할과 업무를 관리하세요.'],
   ['schedule', '근무표', '날짜별 근무를 배치하고, 시간표를 선택해 스태프를 할당하세요.'],
+  ['attendance', '출퇴근표', '근무표에 배정한 시간과, 스태프가 앱에서 누른 출근·퇴근 상태를 나란히 비교하세요.'],
   ['live', '실시간 현황', '근무표에 맞춰 바뀌는 현황을 확인하고, 현장에서 인원을 재배정하세요.'],
 ]
 const PAGE_SIZE = 6
@@ -48,6 +51,14 @@ const nowLabel = () => {
 }
 const statusTone = (status) =>
   status === STAFF_STATUS.PENDING ? 'is-lime' : status === STAFF_STATUS.WORKING ? 'is-green' : status === STAFF_STATUS.ABSENT ? 'is-red' : 'is-gray'
+// The statuses an organizer may pick for this person: 대기 / 미출근 always; 근무 중 / 휴식 only
+// once the person is already on the clock (the server answers ATTENDANCE_CONFLICT otherwise).
+const statusChoices = (member) => {
+  const onClock = member.status === STAFF_STATUS.WORKING || member.status === STAFF_STATUS.BREAK
+  return Object.values(STAFF_STATUS).filter(
+    (s) => s !== STAFF_STATUS.REJECTED && (s === member.status || s === STAFF_STATUS.WAITING || s === STAFF_STATUS.ABSENT || (onClock && (s === STAFF_STATUS.WORKING || s === STAFF_STATUS.BREAK))),
+  )
+}
 const active = (members) => members.filter((x) => x.status !== STAFF_STATUS.PENDING && x.status !== STAFF_STATUS.REJECTED)
 
 // 스태프 (organizer, web): 명단 / 근무표 / 실시간 현황 + their popups. Data: api/staffApi.js.
@@ -67,7 +78,7 @@ export default function OrganizerStaffPage() {
 
   // The live tab follows the field: it asks again every half minute.
   useEffect(() => {
-    if (tab !== 'live') return undefined
+    if (tab !== 'live' && tab !== 'attendance') return undefined
     const timer = setInterval(reload, LIVE_REFRESH_MS)
     return () => clearInterval(timer)
   }, [tab, reload])
@@ -87,7 +98,8 @@ export default function OrganizerStaffPage() {
   const actions = {
     updateMember: (member, fields) => act(() => updateStaffMember(event.id, member, fields)),
     decide: (member, decision) => act(() => decideStaffMember(event.id, member, decision), decision === 'APPROVED' ? '승인했어요.' : '거부했어요.'),
-    assignDuty: (member, dutyId) => act(() => updateStaffMember(event.id, member, { dutyId, status: STAFF_STATUS.WORKING }), '업무를 할당했어요.'),
+    // Only the duty: "근무 중" / "휴식" come from the person's own clock-in (the server refuses them otherwise).
+    assignDuty: (member, dutyId) => act(() => updateStaffMember(event.id, member, { dutyId }), '업무를 배정했어요. 출근하면 근무 중으로 표시돼요.'),
     addDuty: (fields) => act(() => createDuty(event.id, fields), '업무를 추가했어요.'),
   }
 
@@ -137,6 +149,7 @@ export default function OrganizerStaffPage() {
           <>
             {tab === 'roster' && <Roster board={board} actions={actions} />}
             {tab === 'schedule' && <Schedule key={scheduleVersion} board={board} event={event} onAdd={() => setModal('shift')} notify={notify} />}
+            {tab === 'attendance' && <Attendance board={board} event={event} />}
             {tab === 'live' && <Live board={board} actions={actions} />}
           </>
         )}
@@ -282,7 +295,7 @@ function Roster({ board, actions }) {
                   <td>{x.phone}</td>
                   <td>
                     <select className={`sf-chip-select ${statusTone(x.status)}`} value={x.status} onChange={(e) => actions.updateMember(x, { status: e.target.value })} aria-label={`${x.name} 상태`}>
-                      {Object.values(STAFF_STATUS).filter((s) => s !== STAFF_STATUS.REJECTED).map((s) => (
+                      {statusChoices(x).map((s) => (
                         <option key={s} value={s}>
                           {STAFF_STATUS_LABEL[s]}
                         </option>
@@ -382,7 +395,7 @@ function Detail({ member, dutyName, board, actions }) {
         <dt>상태</dt>
         <dd>
           <select className={`sf-select ${statusTone(member.status)}`} value={member.status} onChange={(e) => actions.updateMember(member, { status: e.target.value })}>
-            {Object.values(STAFF_STATUS).filter((s) => s !== STAFF_STATUS.REJECTED).map((s) => (
+            {statusChoices(member).map((s) => (
               <option key={s} value={s}>
                 {STAFF_STATUS_LABEL[s]}
               </option>
@@ -618,7 +631,7 @@ function Schedule({ board, event, onAdd, notify }) {
         <small className="sf-hint">미배정 시간은 휴식으로 표시 · 현재 시각선은 10분 단위로 이동</small>
       </section>
       {selected ? (
-        <ShiftPanel key={`${selected.id}:${selected.revision}`} shift={selected} board={board} eventId={event.id} onSaved={reload} notify={notify} />
+        <ShiftPanel key={`${selected.id}:${selected.revision}`} shift={selected} board={board} event={event} onSaved={reload} notify={notify} />
       ) : (
         <aside className="sf-card sf-empty">근무를 선택하세요.</aside>
       )}
@@ -626,7 +639,10 @@ function Schedule({ board, event, onAdd, notify }) {
   )
 }
 
-function ShiftPanel({ shift, board, eventId, onSaved, notify }) {
+function ShiftPanel({ shift, board, event, onSaved, notify }) {
+  const eventId = event.id
+  const [editing, setEditing] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const duty = board.duties.find((d) => d.id === shift.dutyId)
   const [q, setQ] = useState('')
   const [role, setRole] = useState('')
@@ -662,6 +678,14 @@ function ShiftPanel({ shift, board, eventId, onSaved, notify }) {
       <p className="sf-meta">
         역할: {shift.roles.map((r) => STAFF_ROLE_LABEL[r] ?? r).join(' · ')} | 배정 {chosen.length}명
       </p>
+      <div className="sf-actions">
+        <button type="button" className="sf-btn" onClick={() => setEditing(true)}>
+          시간 · 역할 변경
+        </button>
+        <button type="button" className="sf-btn is-danger" onClick={() => setRemoving(true)}>
+          근무 삭제
+        </button>
+      </div>
       <input className="sf-input" placeholder="⌕ 이름 · 연락처 검색" value={q} onChange={(e) => setQ(e.target.value)} />
       <select className="sf-select" value={role} onChange={(e) => setRole(e.target.value)} aria-label="역할">
         <option value="">전체 역할</option>
@@ -690,7 +714,110 @@ function ShiftPanel({ shift, board, eventId, onSaved, notify }) {
       <button type="button" className="sf-btn is-primary is-block" disabled={busy} onClick={save}>
         배정 저장하기
       </button>
+      {editing && <ShiftEditModal shift={shift} event={event} duty={duty} onClose={() => setEditing(false)} onSaved={onSaved} notify={notify} />}
+      {removing && <ShiftRemoveModal shift={shift} duty={duty} eventId={eventId} onClose={() => setRemoving(false)} onSaved={onSaved} notify={notify} />}
     </aside>
+  )
+}
+
+// Change the day, hours or roles of a shift that has not started yet.
+function ShiftEditModal({ shift, event, duty, onClose, onSaved, notify }) {
+  const days = useMemo(() => eventDays(event), [event])
+  const [form, setForm] = useState({ date: shift.date, start: shift.start, end: shift.end, roles: shift.roles })
+  const [busy, setBusy] = useState(false)
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
+  const toggleRole = (r) => setForm((f) => ({ ...f, roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r] }))
+  const times = TIMES.includes(form.start) && TIMES.includes(form.end) ? TIMES : [...new Set([...TIMES, form.start, form.end])].sort()
+  const ok = form.start < form.end && form.roles.length > 0
+
+  const submit = async () => {
+    setBusy(true)
+    try {
+      await updateShift(event.id, shift, form)
+      notify('근무 시간을 바꿨어요.')
+      onSaved()
+      onClose()
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal title="근무 시간 변경" subtitle={`${duty?.zone ?? ''} · ${duty?.name ?? ''} (배정한 인원은 그대로 유지돼요. 시작 전 근무만 바꿀 수 있어요.)`} onClose={onClose}>
+      <label className="sf-label">날짜</label>
+      <select className="sf-select" value={form.date} onChange={set('date')}>
+        {days.map((d) => (
+          <option key={d} value={d}>
+            {dayLabel(d)}
+          </option>
+        ))}
+      </select>
+      <div className="sf-two">
+        <div>
+          <label className="sf-label">시작 시간</label>
+          <select className="sf-select" value={form.start} onChange={set('start')}>
+            {times.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="sf-label">종료 시간</label>
+          <select className="sf-select" value={form.end} onChange={set('end')}>
+            {times.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <label className="sf-label">역할 · 복수 선택</label>
+      <div className="sf-checks">
+        {Object.values(STAFF_ROLE).map((r) => (
+          <label key={r}>
+            <input type="checkbox" checked={form.roles.includes(r)} onChange={() => toggleRole(r)} />
+            {STAFF_ROLE_LABEL[r]}
+          </label>
+        ))}
+      </div>
+      {form.start >= form.end && <p className="sf-note">종료 시간은 시작 시간보다 늦어야 해요.</p>}
+      <div className="sf-actions">
+        <button type="button" className="sf-btn" onClick={onClose}>
+          취소
+        </button>
+        <button type="button" className="sf-btn is-primary" disabled={!ok || busy} onClick={submit}>
+          변경 저장
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function ShiftRemoveModal({ shift, duty, eventId, onClose, onSaved, notify }) {
+  const [busy, setBusy] = useState(false)
+  const submit = async () => {
+    setBusy(true)
+    try {
+      await deleteShift(eventId, shift)
+      notify('근무를 삭제했어요.')
+      onSaved()
+      onClose()
+    } catch (err) {
+      notify(apiErrorMessage(err), 'error')
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal title="근무 삭제" subtitle={`${duty?.name ?? ''} ${shift.start} – ${shift.end} 근무와 그 배정이 사라져요. 이미 시작한 근무는 지울 수 없어요.`} onClose={onClose}>
+      <div className="sf-actions">
+        <button type="button" className="sf-btn" onClick={onClose}>
+          취소
+        </button>
+        <button type="button" className="sf-btn is-danger" disabled={busy} onClick={submit}>
+          삭제하기
+        </button>
+      </div>
+    </Modal>
   )
 }
 
@@ -988,5 +1115,137 @@ function AssignModal({ member, board, actions, onClose }) {
         </button>
       </div>
     </Modal>
+  )
+}
+
+// ---------------------------------------------------------------- 출퇴근표
+// The 근무표 is what the organizer planned (who should work when). The 출퇴근 is what the staff
+// really did with the 출근 / 퇴근 buttons of their app: the server keeps that as each person's status
+// (근무 중 / 휴식 / 미출근 / 대기). This tab puts both side by side for one day and says where they
+// differ. (The exact clock-in / clock-out times of every person are not available to the organizer
+// yet: see docs/BACKEND_REQUESTS.md.)
+const ON_CLOCK = [STAFF_STATUS.WORKING, STAFF_STATUS.BREAK]
+const hmNow = () => {
+  const d = new Date()
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+// -> { label, tone } how a person's status fits the shifts planned for them today
+function judge(member, shifts, today) {
+  if (!today) return { label: '오늘이 아니라 비교 안 함', tone: 'is-gray' }
+  const onClock = ON_CLOCK.includes(member.status)
+  if (shifts.length === 0) return onClock ? { label: '근무표에 없는데 근무 중', tone: 'is-lime' } : { label: '-', tone: 'is-gray' }
+  const now = hmNow()
+  const first = Math.min(...shifts.map((s) => minutes(s.start)))
+  const last = Math.max(...shifts.map((s) => minutes(s.end)))
+  const inside = shifts.some((s) => minutes(s.start) <= now && now < minutes(s.end))
+  if (now < first) return onClock ? { label: '일찍 출근', tone: 'is-green' } : { label: '근무 전', tone: 'is-gray' }
+  if (inside) return onClock ? { label: '정상 출근', tone: 'is-green' } : { label: '미출근 · 지각', tone: 'is-red' }
+  if (now >= last) return onClock ? { label: '퇴근 확인 필요', tone: 'is-lime' } : { label: '근무 끝', tone: 'is-gray' }
+  return onClock ? { label: '휴식 시간 근무', tone: 'is-lime' } : { label: '쉬는 시간', tone: 'is-gray' }
+}
+
+function Attendance({ board, event }) {
+  const days = useMemo(() => eventDays(event), [event])
+  const [day, setDay] = useState(() => (days.includes(todayYmd()) ? todayYmd() : days[0]))
+  const { data: rows, error, reload } = useAsync(() => listShifts(event.id, day), [event.id, day])
+  const isToday = day === todayYmd()
+
+  // Look at the planned shifts again together with the statuses (the board reloads itself).
+  useEffect(() => {
+    const timer = setInterval(reload, LIVE_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [reload])
+
+  const dutyName = (id) => board.duties.find((d) => d.id === id)?.name ?? ''
+  const byMember = new Map() // memberId -> that person's shifts of the day
+  for (const s of rows ?? []) for (const id of s.memberIds) byMember.set(id, [...(byMember.get(id) ?? []), s])
+  const people = active(board.members)
+  const planned = people.filter((m) => byMember.has(m.id))
+  const unplanned = isToday ? people.filter((m) => !byMember.has(m.id) && ON_CLOCK.includes(m.status)) : []
+  const table = [...planned, ...unplanned]
+  const late = planned.filter((m) => judge(m, byMember.get(m.id), isToday).tone === 'is-red').length
+  const dayIndex = days.indexOf(day)
+
+  return (
+    <section className="sf-card">
+      <div className="sf-toolbar">
+        <button type="button" className="sf-btn is-icon" disabled={dayIndex <= 0} onClick={() => setDay(days[dayIndex - 1])} aria-label="이전 날짜">
+          ‹
+        </button>
+        <select className="sf-select" value={day} onChange={(e) => setDay(e.target.value)} aria-label="날짜">
+          {days.map((d) => (
+            <option key={d} value={d}>
+              {dayLabel(d)}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="sf-btn is-icon" disabled={dayIndex >= days.length - 1} onClick={() => setDay(days[dayIndex + 1])} aria-label="다음 날짜">
+          ›
+        </button>
+        <span className="sf-pill is-green">근무 배정 {planned.length}명</span>
+        {isToday && <span className={`sf-pill ${late > 0 ? 'is-red' : 'is-gray'}`}>미출근 · 지각 {late}명</span>}
+        <span className="sf-spacer" />
+        {isToday && <span className="sf-live">● 실시간 {nowLabel()} 기준</span>}
+      </div>
+
+      <table className="sf-table">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>역할</th>
+            <th>근무표 (계획)</th>
+            <th>출퇴근 (실제 상태)</th>
+            <th>비교</th>
+          </tr>
+        </thead>
+        <tbody>
+          {table.map((m) => {
+            const shifts = byMember.get(m.id) ?? []
+            const verdict = judge(m, shifts, isToday)
+            return (
+              <tr key={m.id}>
+                <td>
+                  <strong>{m.name}</strong>
+                </td>
+                <td>{STAFF_ROLE_LABEL[m.role]}</td>
+                <td>
+                  {shifts.length === 0
+                    ? '배정 없음'
+                    : shifts.map((s) => (
+                        <div key={s.id}>
+                          {s.start} – {s.end} <small>{dutyName(s.dutyId)}</small>
+                        </div>
+                      ))}
+                </td>
+                <td>
+                  <span className={`sf-pill ${statusTone(m.status)}`}>{STAFF_STATUS_LABEL[m.status]}</span>
+                </td>
+                <td>
+                  <span className={`sf-pill ${verdict.tone}`}>{verdict.label}</span>
+                </td>
+              </tr>
+            )
+          })}
+          {rows && table.length === 0 && (
+            <tr>
+              <td colSpan={5} className="sf-empty">
+                이 날짜에 근무가 배정된 스태프가 없어요. 근무표에서 인원을 배정해 주세요.
+              </td>
+            </tr>
+          )}
+          {!rows && (
+            <tr>
+              <td colSpan={5} className="sf-empty">
+                {error ? apiErrorMessage(error) : '불러오는 중…'}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <small className="sf-hint">
+        출퇴근은 스태프가 앱에서 누른 출근 · 퇴근 버튼 기준이에요. 근무표(계획)는 근무표 탭에서 바꿀 수 있어요. 사람별 출근 · 퇴근 시각 목록은 서버 기능이 생기면 여기에 시각으로 나란히 보여 줄게요.
+      </small>
+    </section>
   )
 }

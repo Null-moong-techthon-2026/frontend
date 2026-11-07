@@ -18,4 +18,23 @@ export const HOME_PATH_BY_ROLE = {
   [ROLE.ADMIN]: '/admin/applications',
 }
 
+// Which role a screen belongs to ('' = open to everyone: invitation links, visitor pages ...).
+const AREA_ROLE = [
+  ['/organizer', ROLE.ORGANIZER],
+  ['/apply', ROLE.ORGANIZER],
+  ['/pending', ROLE.ORGANIZER],
+  ['/operator', ROLE.OPERATOR],
+  ['/staff', ROLE.STAFF],
+  ['/admin', ROLE.ADMIN],
+]
+
+// Can this account open the page it was heading for before logging in? A page remembered from
+// another account (the one that just logged out) must not be used for the next one.
+export function canOpen(user, path) {
+  const area = AREA_ROLE.find(([prefix]) => path === prefix || path.startsWith(prefix + '/'))
+  if (!area) return true
+  const role = HOME_PATH_BY_ROLE[user?.role] ? user.role : ROLE.ORGANIZER
+  return role === area[1]
+}
+
 export const homePathFor = (user) => (user ? (HOME_PATH_BY_ROLE[user.role] ?? HOME_PATH_BY_ROLE[ROLE.ORGANIZER]) : '/login')

@@ -652,3 +652,29 @@
   display: flex;
   gap: 6px;
 }
+
+/* 메뉴별 재고: name | stock level | delete sit in fixed columns, so every row lines up */
+.lv-menus li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 28px;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 8px 4px 14px;
+}
+.lv-menus li > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lv-menus li .ms-btn {
+  width: 100%;
+  padding: 0 8px;
+}
+.lv-menus li .lv-item-remove {
+  margin: 0;
+  justify-self: center;
+}
+.lv-menus li:not(:has(.ms-btn)) {
+  display: block;
+}

@@ -882,7 +882,10 @@
 
   .om-main {
     min-height: 0;
-    overflow: hidden;
+    /* Screens built to fit one window keep their look; a taller one (staff list + detail on a short
+       window) scrolls instead of being cut off at the bottom. */
+    overflow-x: hidden;
+    overflow-y: auto;
     --om-px: 28px;
     --om-pt: 0px;
     padding-bottom: 18px;
@@ -1204,4 +1207,26 @@
 .om-confirm .om-warn {
   margin: 0 0 16px;
   text-align: left;
+}
+
+/* dragging the map (or placing pins) must not select text / pictures */
+.om-map-viewport,
+.om-map-viewport * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.om-map-viewport img {
+  -webkit-user-drag: none;
+}
+
+/* the 부스럭 logo icon of 부스 관리: sits on a white chip when its row is highlighted green */
+.om-nav-logo {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+.om-nav-item.is-active .om-nav-logo {
+  background: #fff;
+  padding: 1px;
 }

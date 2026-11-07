@@ -421,3 +421,17 @@
 .mb-scroll > .mb-chip {
   align-self: flex-start;
 }
+
+/* text button in the top bar (staff: 로그아웃) */
+.mb-logout {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--mb-border, #d9e6e1);
+  border-radius: 999px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -6,7 +6,7 @@ import FormField from '../components/FormField'
 import SignupTypeModal from '../components/SignupTypeModal'
 import { AUTH_ERROR_MESSAGE, LOGIN_ID_PATTERN, authErrorMessage } from '../constants/auth'
 import { peekAfterLogin } from '../utils/afterLogin'
-import { homePathFor } from '../utils/role'
+import { canOpen, homePathFor } from '../utils/role'
 import { useAuth } from '../context/useAuth'
 
 // Screens 2 & 3 — login screen, optionally with the "회원가입 유형 선택"
@@ -28,7 +28,9 @@ export default function LoginPage() {
   // Logged in (just now, or /login was opened again): go back to the page they asked for, or
   // to the dashboard. A successful login() fills `user`, which triggers this redirect.
   const target = location.state?.from ?? peekAfterLogin()
-  if (ready && user) return <Navigate to={target ?? homePathFor(user)} replace />
+  // The remembered page is only used when this account may open it (the one who logged out before
+  // may have been a different kind of account).
+  if (ready && user) return <Navigate to={target && canOpen(user, target) ? target : homePathFor(user)} replace />
 
   const signedUp = location.state?.signedUp // set by the signup pages after success
   // Came from an invitation link: say which kind of account it is for.

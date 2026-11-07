@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import boothLogo from '../assets/booth-logo.png'
+import boothIcon from '../assets/icons/booth.svg'
+import { ORGANIZER_ICONS } from './organizerIcons'
 import { HOME_PATH } from '../constants/auth'
 import { EVENT_PROGRESS, EVENT_PROGRESS_LABEL } from '../constants/event'
 import { apiErrorMessage } from '../constants/errors'
@@ -12,19 +14,21 @@ import { getEventProgress } from '../utils/event'
 import '../pages/organizer-map.css'
 
 const NAV = [
-  { key: 'dashboard', label: '대시보드', icon: 'grid', to: '/organizer/dashboard' },
+  { key: 'dashboard', label: '대시보드', icon: 'home', to: '/organizer/dashboard' },
   { key: 'map', label: '지도 제작', icon: 'map', to: '/organizer/map' },
-  { key: 'booths', label: '부스 관리', icon: 'store', to: '/organizer/booths' },
+  { key: 'booths', label: '부스 관리', icon: 'booth', to: '/organizer/booths' },
   { key: 'recruit', label: '부스 모집', icon: 'megaphone', to: '/organizer/recruit' },
   { key: 'live', label: '실시간 운영 현황', icon: 'chart', to: '/organizer/live' },
   { key: 'staff', label: '스태프', icon: 'user', to: '/organizer/staff' },
   { key: 'notice', label: '공지사항', icon: 'bell', to: '/organizer/notices' },
-  { key: 'settle', label: '정산 관리', icon: 'won', badge: '준비중' },
-  { key: 'stats', label: '통계', icon: 'chart', to: '/organizer/stats' },
+  { key: 'settle', label: '정산 관리', icon: 'doc', badge: '준비중' },
+  { key: 'stats', label: '통계', icon: 'chart', to: '/organizer/stats', badge: '준비중' },
 ]
 
 
 export function Icon({ name }) {
+  // The 부스럭 logo (부스 관리) is a multi-colour picture, the rest are line icons from the design files.
+  if (name === 'booth') return <img className="om-nav-logo" src={boothIcon} width="20" height="20" alt="" aria-hidden="true" />
   const paths = {
     grid: <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />,
     map: <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14" />,
@@ -59,7 +63,7 @@ export function Icon({ name }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {paths[name]}
+      {ORGANIZER_ICONS[name] ?? paths[name]}
     </svg>
   )
 }

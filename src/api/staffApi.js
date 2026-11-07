@@ -31,6 +31,7 @@ import { demoDelay, isDemo } from '../utils/demo'
 import { instantToLocalDate, instantToLocalDateTime } from '../utils/date'
 import { get, patch, post, put, query, del } from './client'
 import { toAttachments } from '../utils/notice'
+import { cleanInviteCode } from '../utils/inviteCode'
 
 const notFound = () => Object.assign(new Error('not found'), { status: 404, code: 'RESOURCE_NOT_FOUND' })
 
@@ -200,6 +201,17 @@ export async function createShift(eventId, { date, dutyId, start, end, roles }) 
   return shiftView(await post(`${base(eventId)}/staff-shifts`, { date, dutyId, start, end, roles }))
 }
 
+// Change the day / time / roles of a shift that has not started (the people on it stay).
+export async function updateShift(eventId, shift, { date, start, end, roles }) {
+  if (isDemo()) return demoDelay(null)
+  return shiftView(await put(`${base(eventId)}/staff-shifts/${shift.id}`, { revision: shift.revision, date, dutyId: shift.dutyId, start, end, roles }))
+}
+
+export async function deleteShift(eventId, shift) {
+  if (isDemo()) return demoDelay(null)
+  await del(`${base(eventId)}/staff-shifts/${shift.id}${query({ revision: shift.revision })}`)
+}
+
 export async function replaceShiftMembers(eventId, shift, memberIds) {
   if (isDemo()) {
     store.setShiftMembers(shift.id, memberIds)
@@ -212,7 +224,7 @@ export async function replaceShiftMembers(eventId, shift, memberIds) {
 
 // The event an invitation code (or the token of an invitation link) opens. 404 for a wrong code.
 export async function resolveStaffInvite(code) {
-  const value = code.trim()
+  const value = cleanInviteCode(code)
   if (isDemo()) {
     if (value.length < 4) throw notFound()
     return demoDelay({ eventId: DEMO_EVENT.id, event: DEMO_EVENT })
@@ -240,7 +252,7 @@ export async function resolveStaffInvite(code) {
 // role: STAFF | LABOR | VOLUNTEER
 export async function applyStaff(eventId, { code, role, affiliation }) {
   if (isDemo()) return demoDelay(null)
-  return memberView(await post(`${base(eventId)}/staff-applications`, { code, role, ...(affiliation ? { affiliation } : {}) }))
+  return memberView(await post(`${base(eventId)}/staff-applications`, { code: cleanInviteCode(code), role, ...(affiliation ? { affiliation } : {}) }))
 }
 
 // -> [{ eventId, memberId, role, status, eventName, dutyName, ... }]
@@ -289,7 +301,8 @@ export async function listMyAttendance(eventId) {
   const raw = await get(`${base(eventId)}/staff/me/attendance${query({ page: 0, size: 100 })}`)
   const records = (raw.content ?? raw.records ?? raw).map(recordView)
   const total = raw.totalMinutes ?? raw.workedMinutes ?? records.reduce((sum, r) => sum + (r.minutes ?? 0), 0)
-  return { records, totalMinutes: total }
+  // canClockIn / canClockOut: what the server lets this person do right now (undefined if not sent).
+  return { records, totalMinutes: total, canClockIn: raw.canClockIn, canClockOut: raw.canClockOut }
 }
 
 // Notices for staff: the normal announcement API, readable by approved staff (audience STAFF).

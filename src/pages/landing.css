@@ -1167,9 +1167,10 @@
   }
 }
 
-/* hovering or focusing the picture holds the slideshow still */
-.lm-outer:hover .lm-seg.is-active i,
-.lm-outer:focus-within .lm-seg.is-active i {
+/* hovering the picture (or keyboard-focusing a control) holds the slideshow still. Clicking an arrow
+   with the mouse must not freeze it, so the controls row and mouse focus do not count. */
+.lm-outer:has(.lm-wrap:hover) .lm-seg.is-active i,
+.lm-outer:has(:focus-visible) .lm-seg.is-active i {
   animation-play-state: paused;
 }
 
@@ -1223,4 +1224,20 @@
     animation: none;
     width: 100%;
   }
+}
+
+/* message under the header (e.g. an operator pressing 행사 개설) */
+.lp-notice {
+  position: absolute;
+  top: 100%;
+  right: 32px;
+  margin: 8px 0 0;
+  max-width: 360px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #173b35;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 8px 24px rgba(23, 59, 53, 0.25);
 }

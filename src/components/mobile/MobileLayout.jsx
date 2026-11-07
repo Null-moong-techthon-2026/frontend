@@ -12,7 +12,8 @@ import './mobile.css'
 //   back      { to, label } shows a "< label" row at the top of the content
 //   bellTo    where the bell goes (omit for a bell that does nothing yet)
 //   footer    a sticky bar above the tabs (the main action button of a screen)
-export default function MobileLayout({ chip, tabs = [], back, bellTo, footer, children }) {
+//   onLogout  shows a 로그아웃 button in the top bar
+export default function MobileLayout({ chip, tabs = [], back, bellTo, footer, onLogout, children }) {
   const navigate = useNavigate()
   return (
     <div className="mb-stage">
@@ -24,6 +25,11 @@ export default function MobileLayout({ chip, tabs = [], back, bellTo, footer, ch
           </div>
           <div className="mb-top-right">
             {chip && <span className="mb-role">{chip}</span>}
+            {onLogout && (
+              <button type="button" className="mb-logout" onClick={onLogout}>
+                로그아웃
+              </button>
+            )}
             <button
               type="button"
               className="mb-bell"

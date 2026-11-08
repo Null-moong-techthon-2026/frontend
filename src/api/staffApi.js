@@ -97,6 +97,7 @@ const mineView = (r) => ({
 })
 
 const recordView = (r) => ({
+  id: r.attendanceId ?? null, // one id per clock-in -> clock-out stretch (a day can have several)
   date: ymd(r.date),
   in: hm(r.in ?? r.clockIn ?? r.clockInAt ?? r.checkInAt),
   out: hm(r.out ?? r.clockOut ?? r.clockOutAt ?? r.checkOutAt) || null,
@@ -302,7 +303,32 @@ export async function listMyAttendance(eventId) {
   const records = (raw.content ?? raw.records ?? raw).map(recordView)
   const total = raw.totalMinutes ?? raw.workedMinutes ?? records.reduce((sum, r) => sum + (r.minutes ?? 0), 0)
   // canClockIn / canClockOut: what the server lets this person do right now (undefined if not sent).
-  return { records, totalMinutes: total, canClockIn: raw.canClockIn, canClockOut: raw.canClockOut }
+  // todayAttendances: every stretch of today (a person may clock in and out several times a day).
+  return {
+    records,
+    totalMinutes: total,
+    canClockIn: raw.canClockIn,
+    canClockOut: raw.canClockOut,
+    today: raw.today ?? null,
+    todayAttendances: raw.todayAttendances ? raw.todayAttendances.map(recordView) : null,
+    open: raw.openAttendance ? recordView(raw.openAttendance) : null,
+  }
+}
+
+// Organizer: who clocked in and out on one day (KST date). One row per stretch, so a person who
+// came back after a break has two rows. Only people with a record appear: the ones who never
+// clocked in are found by comparing with the roster / the 근무표.
+// -> [{ id, memberId, name, role, date, in, out, minutes }]
+export async function listStaffAttendance(eventId, date) {
+  if (isDemo()) return demoDelay([])
+  // The server takes at most 100 rows per page: read the pages until the day is complete.
+  const rows = []
+  for (let pageNo = 0; pageNo < 50; pageNo += 1) {
+    const page = await get(`${base(eventId)}/staff-attendance${query({ date, page: pageNo, size: 100 })}`)
+    rows.push(...(page.content ?? []))
+    if (pageNo + 1 >= (page.totalPages ?? 1)) break
+  }
+  return rows.map((r) => ({ ...recordView(r), memberId: r.memberId, name: r.name ?? '', role: r.role }))
 }
 
 // Notices for staff: the normal announcement API, readable by approved staff (audience STAFF).

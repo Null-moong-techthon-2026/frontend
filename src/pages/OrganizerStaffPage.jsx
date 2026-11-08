@@ -8,6 +8,7 @@ import {
   issueStaffInvitation,
   listDuties,
   listShifts,
+  listStaffAttendance,
   listStaff,
   replaceShiftMembers,
   updateShift,
@@ -51,14 +52,13 @@ const nowLabel = () => {
 }
 const statusTone = (status) =>
   status === STAFF_STATUS.PENDING ? 'is-lime' : status === STAFF_STATUS.WORKING ? 'is-green' : status === STAFF_STATUS.ABSENT ? 'is-red' : 'is-gray'
-// The statuses an organizer may pick for this person: 대기 / 미출근 always; 근무 중 / 휴식 only
-// once the person is already on the clock (the server answers ATTENDANCE_CONFLICT otherwise).
-const statusChoices = (member) => {
-  const onClock = member.status === STAFF_STATUS.WORKING || member.status === STAFF_STATUS.BREAK
-  return Object.values(STAFF_STATUS).filter(
-    (s) => s !== STAFF_STATUS.REJECTED && (s === member.status || s === STAFF_STATUS.WAITING || s === STAFF_STATUS.ABSENT || (onClock && (s === STAFF_STATUS.WORKING || s === STAFF_STATUS.BREAK))),
+// The statuses an organizer may pick for this person: 대기 / 미출근, plus the one the person is in.
+// 근무 중 comes from the person's own 출근 button (the server refuses it otherwise), and the 휴식
+// status is not used: working time is simply what the 출근 / 퇴근 buttons record.
+const statusChoices = (member) =>
+  Object.values(STAFF_STATUS).filter(
+    (s) => s !== STAFF_STATUS.REJECTED && (s === member.status || s === STAFF_STATUS.WAITING || s === STAFF_STATUS.ABSENT),
   )
-}
 const active = (members) => members.filter((x) => x.status !== STAFF_STATUS.PENDING && x.status !== STAFF_STATUS.REJECTED)
 
 // 스태프 (organizer, web): 명단 / 근무표 / 실시간 현황 + their popups. Data: api/staffApi.js.
@@ -1119,52 +1119,86 @@ function AssignModal({ member, board, actions, onClose }) {
 }
 
 // ---------------------------------------------------------------- 출퇴근표
-// The 근무표 is what the organizer planned (who should work when). The 출퇴근 is what the staff
-// really did with the 출근 / 퇴근 buttons of their app: the server keeps that as each person's status
-// (근무 중 / 휴식 / 미출근 / 대기). This tab puts both side by side for one day and says where they
-// differ. (The exact clock-in / clock-out times of every person are not available to the organizer
-// yet: see docs/BACKEND_REQUESTS.md.)
-const ON_CLOCK = [STAFF_STATUS.WORKING, STAFF_STATUS.BREAK]
-const hmNow = () => {
+// The 근무표 is what the organizer planned (who should work when). The 출퇴근 is what each person
+// really did with the 출근 / 퇴근 buttons of the staff app, as the server keeps it: one row per
+// stretch (a person can clock in and out several times a day). Both are shown side by side for one
+// day and compared. 휴식 is not calculated on its own: working time is the time from each 출근 to
+// its 퇴근.
+const fmtMinutes = (m) => (m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60}분` : `${m}분`)
+const nowMinutes = () => {
   const d = new Date()
   return d.getHours() * 60 + d.getMinutes()
 }
 
-// -> { label, tone } how a person's status fits the shifts planned for them today
-function judge(member, shifts, today) {
-  if (!today) return { label: '오늘이 아니라 비교 안 함', tone: 'is-gray' }
-  const onClock = ON_CLOCK.includes(member.status)
-  if (shifts.length === 0) return onClock ? { label: '근무표에 없는데 근무 중', tone: 'is-lime' } : { label: '-', tone: 'is-gray' }
-  const now = hmNow()
-  const first = Math.min(...shifts.map((s) => minutes(s.start)))
-  const last = Math.max(...shifts.map((s) => minutes(s.end)))
-  const inside = shifts.some((s) => minutes(s.start) <= now && now < minutes(s.end))
-  if (now < first) return onClock ? { label: '일찍 출근', tone: 'is-green' } : { label: '근무 전', tone: 'is-gray' }
-  if (inside) return onClock ? { label: '정상 출근', tone: 'is-green' } : { label: '미출근 · 지각', tone: 'is-red' }
-  if (now >= last) return onClock ? { label: '퇴근 확인 필요', tone: 'is-lime' } : { label: '근무 끝', tone: 'is-gray' }
-  return onClock ? { label: '휴식 시간 근무', tone: 'is-lime' } : { label: '쉬는 시간', tone: 'is-gray' }
+// -> [{ label, tone }] how what happened fits what was planned for one person on one day
+//   day: 'future' | 'today' | 'past'
+function compareDay(shifts, stretches, day) {
+  const now = nowMinutes()
+  const firstStart = shifts.length ? Math.min(...shifts.map((s) => minutes(s.start))) : null
+  const lastEnd = shifts.length ? Math.max(...shifts.map((s) => minutes(s.end))) : null
+  if (stretches.length === 0) {
+    if (shifts.length === 0) return []
+    if (day === 'future' || (day === 'today' && now < firstStart)) return [{ label: '근무 전', tone: 'is-gray' }]
+    if (day === 'today' && now < lastEnd) return [{ label: '미출근 · 지각', tone: 'is-red' }]
+    return [{ label: '결근 (기록 없음)', tone: 'is-red' }]
+  }
+  const out = []
+  const open = stretches.some((s) => !s.out)
+  if (shifts.length === 0) return [{ label: '근무표에 없는 출근', tone: 'is-lime' }]
+  const late = minutes(stretches[0].in) - firstStart
+  if (late > 0) out.push({ label: `지각 ${late}분`, tone: 'is-red' })
+  const lastOut = stretches.filter((s) => s.out).at(-1)
+  if (!open && lastOut && minutes(lastOut.out) < lastEnd) out.push({ label: `${lastEnd - minutes(lastOut.out)}분 일찍 퇴근`, tone: 'is-lime' })
+  if (open && (day === 'past' || (day === 'today' && now >= lastEnd))) out.push({ label: '퇴근 확인 필요', tone: 'is-lime' })
+  if (out.length === 0) out.push({ label: open ? '근무 중' : '정상', tone: 'is-green' })
+  return out
 }
 
 function Attendance({ board, event }) {
   const days = useMemo(() => eventDays(event), [event])
   const [day, setDay] = useState(() => (days.includes(todayYmd()) ? todayYmd() : days[0]))
-  const { data: rows, error, reload } = useAsync(() => listShifts(event.id, day), [event.id, day])
-  const isToday = day === todayYmd()
+  const { data, error, reload } = useAsync(async () => {
+    const [shifts, records] = await Promise.all([listShifts(event.id, day), listStaffAttendance(event.id, day)])
+    return { shifts, records }
+  }, [event.id, day])
+  const today = todayYmd()
+  const dayKind = day === today ? 'today' : day > today ? 'future' : 'past'
 
-  // Look at the planned shifts again together with the statuses (the board reloads itself).
+  // Ask again together with the live statuses (the board reloads itself every half minute).
   useEffect(() => {
     const timer = setInterval(reload, LIVE_REFRESH_MS)
     return () => clearInterval(timer)
   }, [reload])
 
   const dutyName = (id) => board.duties.find((d) => d.id === id)?.name ?? ''
-  const byMember = new Map() // memberId -> that person's shifts of the day
-  for (const s of rows ?? []) for (const id of s.memberIds) byMember.set(id, [...(byMember.get(id) ?? []), s])
-  const people = active(board.members)
-  const planned = people.filter((m) => byMember.has(m.id))
-  const unplanned = isToday ? people.filter((m) => !byMember.has(m.id) && ON_CLOCK.includes(m.status)) : []
-  const table = [...planned, ...unplanned]
-  const late = planned.filter((m) => judge(m, byMember.get(m.id), isToday).tone === 'is-red').length
+  const shiftsOf = new Map() // memberId -> planned shifts of the day
+  for (const s of data?.shifts ?? []) for (const id of s.memberIds) shiftsOf.set(id, [...(shiftsOf.get(id) ?? []), s])
+  const stretchesOf = new Map() // memberId -> clock-in / clock-out stretches of the day, oldest first
+  for (const r of data?.records ?? []) stretchesOf.set(r.memberId, [...(stretchesOf.get(r.memberId) ?? []), r])
+  for (const list of stretchesOf.values()) list.sort((a, b) => a.in.localeCompare(b.in))
+
+  const byId = new Map(board.members.map((m) => [m.id, m]))
+  const ids = [...new Set([...shiftsOf.keys(), ...stretchesOf.keys()])]
+  const rows = ids
+    .map((id) => {
+      const member = byId.get(id)
+      const stretches = stretchesOf.get(id) ?? []
+      const shifts = shiftsOf.get(id) ?? []
+      return {
+        id,
+        name: member?.name ?? stretches[0]?.name ?? '',
+        role: member?.role ?? stretches[0]?.role,
+        shifts,
+        stretches,
+        worked: stretches.reduce((sum, s) => sum + (s.minutes ?? 0), 0),
+        verdicts: compareDay(shifts, stretches, dayKind),
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  const planned = rows.filter((r) => r.shifts.length > 0).length
+  const came = rows.filter((r) => r.stretches.length > 0).length
+  const late = rows.filter((r) => r.verdicts.some((v) => v.label.startsWith('지각') || v.label.startsWith('미출근'))).length
+  const missed = rows.filter((r) => r.verdicts.some((v) => v.label.startsWith('결근'))).length
   const dayIndex = days.indexOf(day)
 
   return (
@@ -1183,10 +1217,12 @@ function Attendance({ board, event }) {
         <button type="button" className="sf-btn is-icon" disabled={dayIndex >= days.length - 1} onClick={() => setDay(days[dayIndex + 1])} aria-label="다음 날짜">
           ›
         </button>
-        <span className="sf-pill is-green">근무 배정 {planned.length}명</span>
-        {isToday && <span className={`sf-pill ${late > 0 ? 'is-red' : 'is-gray'}`}>미출근 · 지각 {late}명</span>}
+        <span className="sf-pill is-green">근무 배정 {planned}명</span>
+        <span className="sf-pill is-green">출근 {came}명</span>
+        {late > 0 && <span className="sf-pill is-red">지각 · 미출근 {late}명</span>}
+        {missed > 0 && <span className="sf-pill is-red">결근 {missed}명</span>}
         <span className="sf-spacer" />
-        {isToday && <span className="sf-live">● 실시간 {nowLabel()} 기준</span>}
+        {dayKind === 'today' && <span className="sf-live">● 실시간 {nowLabel()} 기준</span>}
       </div>
 
       <table className="sf-table">
@@ -1195,48 +1231,58 @@ function Attendance({ board, event }) {
             <th>이름</th>
             <th>역할</th>
             <th>근무표 (계획)</th>
-            <th>출퇴근 (실제 상태)</th>
+            <th>출퇴근 (실제 기록)</th>
+            <th>근무 시간</th>
             <th>비교</th>
           </tr>
         </thead>
         <tbody>
-          {table.map((m) => {
-            const shifts = byMember.get(m.id) ?? []
-            const verdict = judge(m, shifts, isToday)
-            return (
-              <tr key={m.id}>
-                <td>
-                  <strong>{m.name}</strong>
-                </td>
-                <td>{STAFF_ROLE_LABEL[m.role]}</td>
-                <td>
-                  {shifts.length === 0
-                    ? '배정 없음'
-                    : shifts.map((s) => (
-                        <div key={s.id}>
-                          {s.start} – {s.end} <small>{dutyName(s.dutyId)}</small>
-                        </div>
-                      ))}
-                </td>
-                <td>
-                  <span className={`sf-pill ${statusTone(m.status)}`}>{STAFF_STATUS_LABEL[m.status]}</span>
-                </td>
-                <td>
-                  <span className={`sf-pill ${verdict.tone}`}>{verdict.label}</span>
-                </td>
-              </tr>
-            )
-          })}
-          {rows && table.length === 0 && (
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <strong>{r.name}</strong>
+              </td>
+              <td>{STAFF_ROLE_LABEL[r.role]}</td>
+              <td>
+                {r.shifts.length === 0
+                  ? '배정 없음'
+                  : r.shifts.map((s) => (
+                      <div key={s.id}>
+                        {s.start} – {s.end} <small>{dutyName(s.dutyId)}</small>
+                      </div>
+                    ))}
+              </td>
+              <td>
+                {r.stretches.length === 0
+                  ? '기록 없음'
+                  : r.stretches.map((s, i) => (
+                      <div key={s.id ?? i}>
+                        {s.in} – {s.out ?? '근무 중'}
+                      </div>
+                    ))}
+              </td>
+              <td>{r.stretches.length === 0 ? '-' : fmtMinutes(r.worked)}</td>
+              <td>
+                {r.verdicts.length === 0
+                  ? '-'
+                  : r.verdicts.map((v) => (
+                      <span key={v.label} className={`sf-pill ${v.tone}`}>
+                        {v.label}
+                      </span>
+                    ))}
+              </td>
+            </tr>
+          ))}
+          {data && rows.length === 0 && (
             <tr>
-              <td colSpan={5} className="sf-empty">
-                이 날짜에 근무가 배정된 스태프가 없어요. 근무표에서 인원을 배정해 주세요.
+              <td colSpan={6} className="sf-empty">
+                이 날짜에 근무가 배정되거나 출근한 스태프가 없어요.
               </td>
             </tr>
           )}
-          {!rows && (
+          {!data && (
             <tr>
-              <td colSpan={5} className="sf-empty">
+              <td colSpan={6} className="sf-empty">
                 {error ? apiErrorMessage(error) : '불러오는 중…'}
               </td>
             </tr>
@@ -1244,7 +1290,7 @@ function Attendance({ board, event }) {
         </tbody>
       </table>
       <small className="sf-hint">
-        출퇴근은 스태프가 앱에서 누른 출근 · 퇴근 버튼 기준이에요. 근무표(계획)는 근무표 탭에서 바꿀 수 있어요. 사람별 출근 · 퇴근 시각 목록은 서버 기능이 생기면 여기에 시각으로 나란히 보여 줄게요.
+        출근 · 퇴근은 스태프가 앱에서 누른 시각이에요. 같은 날 여러 번 출퇴근하면 구간마다 한 줄로 보여요. 휴식은 따로 계산하지 않고, 출근부터 퇴근까지를 근무 시간으로 봐요. 근무표(계획)는 근무표 탭에서 바꿀 수 있어요.
       </small>
     </section>
   )

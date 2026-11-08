@@ -37,7 +37,7 @@ function Profile() {
   const { data: attendance } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
   const who = whoIs(mine, user)
   const records = attendance?.records ?? []
-  const today = records.find((r) => r.date === todayYmd())
+  const todayMinutes = records.filter((r) => r.date === (attendance?.today ?? todayYmd())).reduce((sum, r) => sum + (r.minutes ?? 0), 0)
 
   return (
     <>
@@ -94,7 +94,7 @@ function Profile() {
         <div className="sa-clock">
           <span>
             <small>오늘 근무</small>
-            <b>{hoursOf(today?.minutes ?? 0)}</b>
+            <b>{hoursOf(todayMinutes)}</b>
           </span>
           <span>
             <small>누적 근무</small>
@@ -160,7 +160,7 @@ function Records() {
   const navigate = useNavigate()
   const { mine, event } = useOutletContext()
   const { data: attendance, error, reload } = useAsync(() => listMyAttendance(mine.eventId), [mine.eventId])
-  const today = attendance?.records.find((r) => r.date === todayYmd())
+  const todayMinutes = (attendance?.records ?? []).filter((r) => r.date === (attendance.today ?? todayYmd())).reduce((sum, r) => sum + (r.minutes ?? 0), 0)
 
   return (
     <>
@@ -181,7 +181,7 @@ function Records() {
           <div className="mb-card sa-clock">
             <span>
               <small>오늘 근무</small>
-              <b>{hoursOf(today?.minutes ?? 0)}</b>
+              <b>{hoursOf(todayMinutes)}</b>
             </span>
             <span>
               <small>누적 근무</small>
@@ -189,11 +189,11 @@ function Records() {
             </span>
           </div>
           {attendance.records.length === 0 && <p className="mb-empty">아직 출퇴근 기록이 없어요. 홈에서 출근하기를 눌러 보세요.</p>}
-          {attendance.records.map((r) => {
+          {attendance.records.map((r, i) => {
             const span = r.out ? toMin(r.out) - toMin(r.in) : 0
             const minutes = r.minutes ?? span
             return (
-              <div key={r.date} className="mb-card">
+              <div key={r.id ?? `${r.date}-${i}`} className="mb-card">
                 <div className="mb-card-row">
                   <h3>{dayTitle(r.date)}</h3>
                   <span className={`mb-chip ${r.out ? 'is-outline' : 'is-green'}`}>{r.out ? '근무 완료' : '근무 중'}</span>
@@ -203,8 +203,6 @@ function Records() {
                   <dd>{r.in || '—'}</dd>
                   <dt>퇴근</dt>
                   <dd>{r.out ?? '—'}</dd>
-                  <dt>휴식</dt>
-                  <dd>{r.out ? hoursOf(Math.max(0, span - minutes)) : '—'}</dd>
                   <dt>기록된 근무</dt>
                   <dd>{hoursOf(minutes)}</dd>
                 </dl>

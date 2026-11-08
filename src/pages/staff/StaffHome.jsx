@@ -181,8 +181,13 @@ function ApprovedHome() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
 
-  // The clock records today, whatever day of the event the schedule is showing.
-  const record = attendance?.records.find((r) => r.date === todayYmd()) ?? null
+  // The clock records today, whatever day of the event the schedule is showing. A day can hold
+  // several stretches (in -> out, in -> out ...): show the first in, the last out and the open one.
+  const stretches = attendance ? (attendance.todayAttendances ?? attendance.records.filter((r) => r.date === (attendance.today ?? todayYmd()))) : []
+  const open = attendance?.open ?? stretches.find((r) => !r.out) ?? null
+  const record = stretches.length > 0 ? { in: stretches[stretches.length - 1].in, out: open ? null : stretches[0].out, stretches } : null
+  const firstIn = stretches.length > 0 ? stretches.map((s) => s.in).sort()[0] : ''
+  const lastOut = open ? null : (stretches.map((s) => s.out).filter(Boolean).sort().at(-1) ?? null)
   // The server says what is possible now; without that answer, one record a day: in, then out.
   const canIn = Boolean(attendance) && (attendance.canClockIn ?? !record)
   const canOut = Boolean(attendance) && (attendance.canClockOut ?? Boolean(record && !record.out))
@@ -228,20 +233,29 @@ function ApprovedHome() {
       <div className="mb-card">
         <div className="mb-card-row">
           <h3>출퇴근 체크</h3>
-          <span className={`mb-chip ${record ? (record.out ? 'is-gray' : 'is-green') : 'is-outline'}`}>
-            {record ? (record.out ? '퇴근 완료' : '근무 중') : '미출근'}
+          <span className={`mb-chip ${record ? (open ? 'is-green' : 'is-gray') : 'is-outline'}`}>
+            {record ? (open ? '근무 중' : '퇴근 완료') : '미출근'}
           </span>
         </div>
         <div className="sa-clock">
           <span>
             <small>출근</small>
-            <b>{record?.in || '—'}</b>
+            <b>{firstIn || '—'}</b>
           </span>
           <span>
             <small>퇴근</small>
-            <b>{record?.out || '—'}</b>
+            <b>{lastOut || '—'}</b>
           </span>
         </div>
+        {stretches.length > 1 && (
+          <ul className="mb-muted sa-caption">
+            {stretches.map((s, i) => (
+              <li key={s.id ?? i}>
+                {i + 1}번째 근무 {s.in} – {s.out ?? '근무 중'}
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="mb-btn-row">
           <button type="button" className="mb-btn is-primary" disabled={busy || !canIn} onClick={() => punch(clockIn)}>
             출근하기
@@ -250,7 +264,7 @@ function ApprovedHome() {
             퇴근하기
           </button>
         </div>
-        {record?.out && !canIn && <p className="mb-muted sa-caption">오늘은 이미 퇴근했어요. 같은 날 다시 출근하려면 주최측에 문의해 주세요.</p>}
+        {record && !open && !canIn && <p className="mb-muted sa-caption">지금은 다시 출근할 수 없어요. 주최측에 문의해 주세요.</p>}
         {message && <p className="mb-error">{message}</p>}
       </div>
 

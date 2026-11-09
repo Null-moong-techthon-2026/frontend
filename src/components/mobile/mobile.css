@@ -9,6 +9,7 @@
   --mb-primary-dark: #2f6258;
   --mb-lime: #d9f58a;
   --mb-danger: #b5533c;
+  min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   justify-content: center;
@@ -19,6 +20,7 @@
 .mb-frame {
   position: relative;
   width: 100%;
+  height: 100vh;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -34,6 +36,7 @@
   }
   .mb-frame {
     max-width: 430px;
+    height: min(calc(100vh - 56px), 880px);
     height: min(calc(100dvh - 56px), 880px);
     border-radius: 28px;
     border: 1px solid var(--mb-border);

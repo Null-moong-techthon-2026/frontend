@@ -1,5 +1,6 @@
 /* Administrator screen for 행사 개설 신청 (pages/AdminApplicationsPage.jsx). An internal tool: plain on purpose. */
 .ad {
+  min-height: 100vh;
   min-height: 100dvh;
   background: #f4f8f6;
   color: #173b35;

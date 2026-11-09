@@ -25,6 +25,22 @@ export default function EventPendingPage() {
     if (status === 'ready') navigate('/organizer/dashboard', { replace: true })
   }, [status, navigate])
 
+  // The admin may approve while this page is open (or the phone was asleep): look again every 15 s and
+  // whenever the tab comes back to the front, so the page does not keep saying 'waiting'.
+  useEffect(() => {
+    const look = () => {
+      if (document.visibilityState === 'hidden') return
+      reload()
+      reloadEvent()
+    }
+    const timer = setInterval(look, 15000)
+    document.addEventListener('visibilitychange', look)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', look)
+    }
+  }, [reload, reloadEvent])
+
   if (!canOpen(user, '/pending')) return <Navigate to={homePathFor(user)} replace />
 
   const check = () => {

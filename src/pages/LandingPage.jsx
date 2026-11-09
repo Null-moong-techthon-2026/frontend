@@ -46,12 +46,12 @@ function PhoneLanding() {
 
       <div className="landing-actions">
         <p className="landing-tooltip">
-          {user ? `${user.nickname}님, 환영해요!` : '가입·로그인 없이 바로 이용해요!'}
+          {user ? `${user.nickname}님, 환영해요!` : '행사장 QR을 찍으면 가입 없이 바로 볼 수 있어요!'}
         </p>
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => navigate(user ? homePathFor(user) : '/home')}
+          onClick={() => navigate(user ? homePathFor(user) : '/visit')}
         >
           시작하기
         </button>

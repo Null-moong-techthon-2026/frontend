@@ -4,7 +4,6 @@ import LoginPage from './pages/LoginPage'
 import OrganizerSignupPage from './pages/OrganizerSignupPage'
 import BoothSignupPage from './pages/BoothSignupPage'
 import StaffSignupPage from './pages/StaffSignupPage'
-import PlaceholderPage from './pages/PlaceholderPage'
 import OrganizerMapPage from './pages/OrganizerMapPage'
 import BoothManagePage from './pages/BoothManagePage'
 import DashboardPage from './pages/DashboardPage'
@@ -31,6 +30,7 @@ import OperatorRecruits from './pages/operator/OperatorRecruits'
 import OperatorRecruitDetail from './pages/operator/OperatorRecruitDetail'
 import OperatorApply from './pages/operator/OperatorApply'
 import OperatorInvite from './pages/operator/OperatorInvite'
+import VisitStartPage from './pages/VisitStartPage'
 import OperatorMap from './pages/operator/OperatorMap'
 import OperatorBooth from './pages/operator/OperatorBooth'
 import OperatorMenu from './pages/operator/OperatorMenu'
@@ -84,7 +84,8 @@ function App() {
       <Route path="/signup/organizer" element={<OrganizerSignupPage />} />
       <Route path="/signup/booth" element={<BoothSignupPage />} />
       <Route path="/signup/staff" element={<StaffSignupPage />} />
-      <Route path="/home" element={<PlaceholderPage />} />
+      <Route path="/visit" element={<VisitStartPage />} />
+      <Route path="/home" element={<Navigate to="/visit" replace />} />
       {/* Visitors: no login. The link / QR code on the organizer's dashboard points here. */}
       <Route path="/e/:eventId" element={<VisitorLayout />}>
         <Route index element={<VisitorHome />} />

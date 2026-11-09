@@ -703,3 +703,31 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* a notice above the roster when somebody waits for approval; the count on the 명단 tab */
+.sf-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eef9c8;
+  color: #3f5a14;
+  font-size: 13px;
+}
+.sf-tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #d9f58a;
+  color: #3f5a14;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}

@@ -78,7 +78,7 @@ export default function OrganizerStaffPage() {
 
   // The live tab follows the field: it asks again every half minute.
   useEffect(() => {
-    if (tab !== 'live' && tab !== 'attendance') return undefined
+    if (tab !== 'live' && tab !== 'attendance' && tab !== 'roster') return undefined
     const timer = setInterval(reload, LIVE_REFRESH_MS)
     return () => clearInterval(timer)
   }, [tab, reload])
@@ -100,10 +100,12 @@ export default function OrganizerStaffPage() {
     decide: (member, decision) => act(() => decideStaffMember(event.id, member, decision), decision === 'APPROVED' ? '승인했어요.' : '거부했어요.'),
     // Only the duty: "근무 중" / "휴식" come from the person's own clock-in (the server refuses them otherwise).
     assignDuty: (member, dutyId) => act(() => updateStaffMember(event.id, member, { dutyId }), '업무를 배정했어요. 출근하면 근무 중으로 표시돼요.'),
+    refresh: () => act(async () => {}, '명단을 새로 불러왔어요.'),
     addDuty: (fields) => act(() => createDuty(event.id, fields), '업무를 추가했어요.'),
   }
 
   const current = TABS.find((t) => t[0] === tab)
+  const waiting = board ? board.members.filter((m) => m.status === STAFF_STATUS.PENDING).length : 0
 
   return (
     <OrganizerLayout
@@ -129,6 +131,7 @@ export default function OrganizerStaffPage() {
           {TABS.map(([key, label]) => (
             <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? 'is-active' : ''} onClick={() => setTab(key)}>
               {label}
+              {key === 'roster' && waiting > 0 && <span className="sf-tab-badge">{waiting}</span>}
             </button>
           ))}
         </div>
@@ -207,7 +210,10 @@ function Roster({ board, actions }) {
   const [page, setPage] = useState(0)
   const [selectedId, setSelectedId] = useState(null)
 
-  const people = board.members.filter((x) => x.status !== STAFF_STATUS.REJECTED)
+  // People waiting for approval come first: a new application must not hide on a later page.
+  const people = board.members
+    .filter((x) => x.status !== STAFF_STATUS.REJECTED)
+    .sort((a, b) => Number(b.status === STAFF_STATUS.PENDING) - Number(a.status === STAFF_STATUS.PENDING))
   const roles = countBy(people, 'role')
   const pending = people.filter((x) => x.status === STAFF_STATUS.PENDING).length
   const needle = q.trim().toLowerCase()
@@ -235,8 +241,21 @@ function Roster({ board, actions }) {
             <span className="sf-pills">
               <span className="sf-pill">전체 {people.length}</span>
               <span className="sf-pill is-lime">승인 대기 {pending}</span>
+              <button type="button" className="sf-btn is-sm" onClick={() => actions.refresh()}>
+                새로고침
+              </button>
             </span>
           </div>
+          {pending > 0 && (
+            <div className="sf-callout">
+              <span>
+                승인을 기다리는 신청이 <b>{pending}명</b> 있어요. 명단 맨 위에 보여요.
+              </span>
+              <button type="button" className="sf-btn is-sm" onClick={() => { setStatus(STAFF_STATUS.PENDING); setPage(0) }}>
+                대기 중만 보기
+              </button>
+            </div>
+          )}
           <div className="sf-filters">
             <input className="sf-input" placeholder="⌕ 이름 · 연락처 검색" value={q} onChange={(e) => { setQ(e.target.value); setPage(0) }} />
             <select className="sf-select" value={role} onChange={(e) => { setRole(e.target.value); setPage(0) }} aria-label="역할">

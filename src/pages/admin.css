@@ -235,3 +235,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* the status chip must not break into one letter per line in a narrow column */
+.ad-chip {
+  white-space: nowrap;
+}

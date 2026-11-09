@@ -31,6 +31,7 @@ import OperatorRecruits from './pages/operator/OperatorRecruits'
 import OperatorRecruitDetail from './pages/operator/OperatorRecruitDetail'
 import OperatorApply from './pages/operator/OperatorApply'
 import OperatorInvite from './pages/operator/OperatorInvite'
+import OperatorMap from './pages/operator/OperatorMap'
 import OperatorBooth from './pages/operator/OperatorBooth'
 import OperatorMenu from './pages/operator/OperatorMenu'
 import OperatorBoothEdit from './pages/operator/OperatorBoothEdit'
@@ -121,6 +122,7 @@ function App() {
           <Route path="recruits/:eventId/apply" element={<OperatorApply />} />
           <Route path="invite" element={<OperatorInvite />} />
           <Route path="booth" element={<OperatorBooth />} />
+          <Route path="map" element={<OperatorMap />} />
           <Route path="booth/menu" element={<OperatorMenu />} />
           <Route path="booth/edit" element={<OperatorBoothEdit />} />
           <Route path="notices" element={<OperatorNotices />} />

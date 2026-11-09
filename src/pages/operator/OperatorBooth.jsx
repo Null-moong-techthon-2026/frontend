@@ -89,7 +89,7 @@ export default function OperatorBooth() {
         <h3>내 부스 정보</h3>
         <div className="mb-card-row">
           <span>부스 번호 {detail.code || '-'}</span>
-          <button type="button" className="mb-link" onClick={() => navigate(`/e/${booth.eventId}/map?booth=${booth.id}`)}>
+          <button type="button" className="mb-link" onClick={() => navigate(`/operator/map?event=${booth.eventId}&booth=${booth.id}`)}>
             지도에서 보기 ›
           </button>
         </div>

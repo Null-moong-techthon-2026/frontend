@@ -96,7 +96,7 @@ function JoinedHome() {
       <div className="mb-card">
         <div className="mb-card-row">
           <h3>내 부스 위치</h3>
-          <button type="button" className="mb-link" onClick={() => navigate(`/e/${booth.eventId}/map?booth=${booth.id}`)}>
+          <button type="button" className="mb-link" onClick={() => navigate(`/operator/map?event=${booth.eventId}&booth=${booth.id}`)}>
             지도에서 보기 ›
           </button>
         </div>

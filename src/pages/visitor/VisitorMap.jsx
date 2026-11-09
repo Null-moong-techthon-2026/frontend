@@ -18,9 +18,25 @@ const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z))
 export default function VisitorMap() {
   const navigate = useNavigate()
   const { event, base } = useOutletContext()
+  return (
+    <EventMap
+      eventId={event.id}
+      action={(booth) => (
+        <button type="button" className="mb-btn is-primary" onClick={() => navigate(`${base}/booths/${booth.id}`)}>
+          부스 상세 보기
+        </button>
+      )}
+    />
+  )
+}
+
+// The floor map of one event: filters, pins, pinch zoom. `action(booth)` gives the button under the
+// card of the booth that was picked (the visitor app opens the booth page, the booth operator's
+// app opens their own booth). The picked booth can come with the address: ?booth=<id>.
+export function EventMap({ eventId, action }) {
   const [params] = useSearchParams()
-  const { data: map, loading: mapLoading, error: mapError, reload } = useAsync(() => getPublicMapView(event.id), [event.id])
-  const { data: booths } = useAsync(() => listPublicBooths(event.id), [event.id])
+  const { data: map, loading: mapLoading, error: mapError, reload } = useAsync(() => getPublicMapView(eventId), [eventId])
+  const { data: booths } = useAsync(() => listPublicBooths(eventId), [eventId])
 
   const [category, setCategory] = useState('')
   const [openOnly, setOpenOnly] = useState(false)
@@ -223,9 +239,7 @@ export default function VisitorMap() {
               <small>{[boothSubtitle(selected), hoursText(selected.hours)].filter(Boolean).join(' · ')}</small>
             </span>
           </div>
-          <button type="button" className="mb-btn is-primary" onClick={() => navigate(`${base}/booths/${selected.id}`)}>
-            부스 상세 보기
-          </button>
+          {action?.(selected)}
         </div>
       )}
     </>

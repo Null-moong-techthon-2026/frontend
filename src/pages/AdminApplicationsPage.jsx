@@ -130,7 +130,15 @@ export default function AdminApplicationsPage() {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className={r.id === selectedId ? 'is-selected' : ''} onClick={() => { setSelectedId(r.id); setReason('') }}>
+                    <tr key={r.id} className={r.id === selectedId ? 'is-selected' : ''} onClick={() => {
+                        setSelectedId(r.id)
+                        setReason('')
+                        // On a phone the detail sits under the list: bring it into view.
+                        setTimeout(() => {
+                          const box = document.querySelector('.ad-grid aside')
+                          if (box && box.getBoundingClientRect().top > window.innerHeight * 0.6) box.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }, 50)
+                      }}>
                       <td>
                         <strong>{r.eventName}</strong>
                       </td>

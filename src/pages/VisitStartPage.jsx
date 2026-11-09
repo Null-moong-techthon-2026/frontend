@@ -2,18 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AuthHeader from '../components/AuthHeader'
 import ScreenShell from '../components/ScreenShell'
-import { eventIdFromInput, listPublicEvents } from '../api/visitorApi'
-import { apiErrorMessage } from '../constants/errors'
-import { useAsync } from '../utils/useAsync'
+import { eventIdFromInput } from '../api/visitorApi'
 import './visit-start.css'
 
-// 시작하기 without logging in: a visitor opens the event they came for, either by pasting the event
-// link (the QR code at the venue holds the same link) or by picking it from the list.
+// 시작하기 without logging in: a visitor opens the event they came for by pasting the event link
+// (the QR code at the venue holds the same link). No list of events is shown.
 export default function VisitStartPage() {
   const navigate = useNavigate()
   const [text, setText] = useState('')
   const [notice, setNotice] = useState('')
-  const { data: events, error, reload } = useAsync(listPublicEvents, [])
 
   const open = (e) => {
     e.preventDefault()
@@ -30,7 +27,7 @@ export default function VisitStartPage() {
       <AuthHeader backTo="/" />
       <div className="auth-body vs-start">
         <h2>어떤 행사에 가시나요?</h2>
-        <p className="vs-start-lead">가입 없이 부스·지도·공지를 볼 수 있어요.</p>
+        <p className="vs-start-lead">주최 측에서 받은 행사 링크를 붙여 넣으면 가입 없이 부스·지도·공지를 볼 수 있어요.</p>
 
         <form onSubmit={open} className="vs-start-form">
           <input
@@ -45,34 +42,6 @@ export default function VisitStartPage() {
           </button>
         </form>
         {notice && <p className="vs-start-error">{notice}</p>}
-
-        <h3>진행 중인 행사</h3>
-        {error ? (
-          <p className="vs-start-error">
-            {apiErrorMessage(error)}{' '}
-            <button type="button" className="vs-start-retry" onClick={reload}>
-              다시 시도
-            </button>
-          </p>
-        ) : !events ? (
-          <p className="vs-start-lead">불러오는 중…</p>
-        ) : events.length === 0 ? (
-          <p className="vs-start-lead">열려 있는 행사가 아직 없어요.</p>
-        ) : (
-          <ul className="vs-start-list">
-            {events.map((ev) => (
-              <li key={ev.id}>
-                <button type="button" onClick={() => navigate(`/e/${ev.id}`)} className={ev.ended ? 'is-ended' : ''}>
-                  <strong>{ev.name}</strong>
-                  <span>
-                    {ev.organizationName} · {ev.startDate} ~ {ev.endDate}
-                    {ev.ended ? ' · 종료' : ''}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </ScreenShell>
   )

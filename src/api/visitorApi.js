@@ -151,25 +151,6 @@ export async function getPublicNotice(eventId, noticeId, organizationName = '') 
 export const listSponsors = async () => (isDemo() ? demoDelay(DEMO_SPONSORS) : [])
 export const getHomeAd = async () => (isDemo() ? demoDelay(DEMO_AD) : null)
 
-// The events a visitor can open without logging in (GET /api/public/events), running or coming
-// soon first, finished ones last.
-export async function listPublicEvents() {
-  const page = await get(`/api/public/events${query({ page: 0, size: 50 })}`)
-  const rank = { ONGOING: 0, UPCOMING: 1 }
-  return page.content
-    .map((e) => ({
-      id: e.id,
-      name: e.name,
-      organizationName: e.organization?.name ?? '',
-      venue: e.venue ?? '',
-      startDate: e.startsAt ? e.startsAt.slice(0, 10).replaceAll('-', '.') : '',
-      endDate: e.endsAt ? e.endsAt.slice(0, 10).replaceAll('-', '.') : '',
-      ended: e.scheduleStatus === 'ENDED',
-      rank: rank[e.scheduleStatus] ?? 2,
-    }))
-    .sort((a, b) => a.rank - b.rank)
-}
-
 // Pulls the event id out of what a visitor pasted: the event link (.../e/<id>/...) or the id itself.
 export function eventIdFromInput(value) {
   const text = String(value ?? '').trim()

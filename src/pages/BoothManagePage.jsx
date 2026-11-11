@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import * as boothApi from '../api/boothApi'
 import {
   BOOTH_CATEGORY,
@@ -7,6 +7,7 @@ import {
   BOOTH_NAME_MAX,
   BOOTH_STATUS,
   BOOTH_STATUS_LABEL,
+  applicationStatusRank,
   DOCUMENT_CHECK_LABEL,
 } from '../constants/booth'
 import { apiErrorMessage } from '../constants/errors'
@@ -178,7 +179,7 @@ export default function BoothManagePage() {
   const [cancelReason, setCancelReason] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const [list, setList] = useState(null) // null until the first load; { content, totalElements, totalPages }
+  const [allRows, setAllRows] = useState(null) // null until the first load; every application matching the filters
   const [listError, setListError] = useState('')
   const [listVersion, setListVersion] = useState(0) // bump to load the list again
 
@@ -196,9 +197,7 @@ export default function BoothManagePage() {
   useEffect(() => {
     let alive = true
     boothApi
-      .listApplications(eventId, {
-        page: page - 1,
-        size: PAGE_SIZE,
+      .listAllApplications(eventId, {
         q: debouncedQuery,
         categoryCode: category === 'all' ? '' : category,
         reviewStatus: statusFilter === 'all' ? '' : statusFilter,
@@ -206,14 +205,23 @@ export default function BoothManagePage() {
       })
       .then((result) => {
         if (!alive) return
-        setList(result)
+        setAllRows(result)
         setListError('')
       })
       .catch((err) => alive && setListError(apiErrorMessage(err)))
     return () => {
       alive = false
     }
-  }, [eventId, page, debouncedQuery, category, statusFilter, sort, listVersion])
+  }, [eventId, debouncedQuery, category, statusFilter, sort, listVersion])
+
+  // Group by status (the server's order inside each group is kept), then cut the page here.
+  const list = useMemo(() => {
+    if (!allRows) return null
+    const sorted = [...allRows].sort((a, b) => applicationStatusRank(a.reviewStatus) - applicationStatusRank(b.reviewStatus))
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+    const p = Math.min(page, totalPages)
+    return { content: sorted.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE), totalElements: sorted.length, totalPages }
+  }, [allRows, page])
 
   useEffect(() => {
     if (!selectedId) return

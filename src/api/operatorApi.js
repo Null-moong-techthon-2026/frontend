@@ -32,6 +32,7 @@ import {
   DEMO_PROFILES,
   DEMO_RECRUITING,
 } from '../dummy/demoData'
+import { applicationStatusRank } from '../constants/booth'
 import { demoDelay, isDemo, isDemoNewcomer } from '../utils/demo'
 import { todayYmd } from '../utils/eventDays'
 import { cleanInviteCode } from '../utils/inviteCode'
@@ -176,7 +177,8 @@ const demoApplicationList = () => (demoApplications ??= DEMO_MY_APPLICATIONS.map
 export async function listMyApplicationViews() {
   if (isDemo()) return demoDelay(isDemoNewcomer() ? [] : demoApplicationList())
   const page = await get(`/api/me/applications${query({ page: 0, size: 50 })}`)
-  return page.content.map(applicationView)
+  // approved first, then in review, then rejected, then cancelled (the newest first inside each group)
+  return page.content.map(applicationView).sort((a, b) => applicationStatusRank(a.status) - applicationStatusRank(b.status))
 }
 
 // body: { boothProfileId, applicantName, applicantPhone, applicantEmail, invitationCode? }

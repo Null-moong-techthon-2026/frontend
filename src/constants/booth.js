@@ -9,6 +9,13 @@ export const BOOTH_STATUS = {
   CANCELLED: 'CANCELLED', // 승인 취소 (an approved application withdrawn; the record stays)
 }
 
+// Lists of applications show: approved, then in review, then rejected, then cancelled.
+const STATUS_ORDER = [BOOTH_STATUS.APPROVED, BOOTH_STATUS.PENDING, BOOTH_STATUS.REJECTED, BOOTH_STATUS.CANCELLED]
+export const applicationStatusRank = (status) => {
+  const i = STATUS_ORDER.indexOf(status)
+  return i < 0 ? STATUS_ORDER.length : i
+}
+
 export const BOOTH_STATUS_LABEL = {
   [BOOTH_STATUS.PENDING]: '검토 중',
   [BOOTH_STATUS.APPROVED]: '승인',

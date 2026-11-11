@@ -10,6 +10,8 @@ import { ROLE } from '../utils/role'
 import { useToast } from '../utils/useToast'
 import './admin.css'
 
+// approved first, then waiting, then rejected
+const OPENING_RANK = { APPROVED: 0, PENDING: 1, REJECTED: 2 }
 const STATUS_LABEL = { PENDING: '대기 중', APPROVED: '승인', REJECTED: '반려' }
 const TABS = [
   ['PENDING', '대기 중'],
@@ -40,7 +42,7 @@ export default function AdminApplicationsPage() {
     if (!isAdmin) return undefined // other accounts are sent away below; do not call the admin API for them
     let alive = true
     listAdminOpenings({ status: tab, page: 0, size: 100 })
-      .then((page) => alive && (setRows(page.content), setError(null)))
+      .then((page) => alive && (setRows([...page.content].sort((a, b) => OPENING_RANK[a.status] - OPENING_RANK[b.status])), setError(null)))
       .catch((err) => alive && (setRows(null), setError(err)))
     return () => {
       alive = false

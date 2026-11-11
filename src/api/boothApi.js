@@ -88,6 +88,16 @@ export const deleteItem = (eventId, boothId, itemId, revision) =>
 export const listMyApplications = () => get(`/api/me/applications${query({ page: 0, size: 1 })}`)
 export const listMyBooths = () => get(`/api/me/booths${query({ page: 0, size: 1 })}`)
 
+// Loads every page of the application list (the backend allows at most 100 per page).
+export async function listAllApplications(eventId, params = {}) {
+  const all = []
+  for (let page = 0; ; page++) {
+    const result = await listApplications(eventId, { ...params, page, size: 100 })
+    all.push(...result.content)
+    if (page + 1 >= result.totalPages) return all
+  }
+}
+
 // Loads every page of a booth list (the backend allows at most 100 per page).
 export async function listAllBooths(eventId, params = {}) {
   const all = []

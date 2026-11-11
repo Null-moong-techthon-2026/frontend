@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { decideOpening, listAdminOpenings } from '../api/eventApi'
+import { DEMO_EVENT_ID, decideOpening, listAdminOpenings, resetDemo } from '../api/eventApi'
 import boothLogo from '../assets/booth-logo.png'
 import Toast from '../components/Toast'
 import { apiErrorMessage } from '../constants/errors'
@@ -34,6 +34,10 @@ export default function AdminApplicationsPage() {
   const [confirm, setConfirm] = useState(null) // 'APPROVED' | 'REJECTED' while the confirmation is open
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState(0)
+  const [demoId, setDemoId] = useState(DEMO_EVENT_ID)
+  const [demoAsk, setDemoAsk] = useState(false)
+  const [demoBusy, setDemoBusy] = useState(false)
+  const demoRequest = useRef(null) // the same request id is kept while one click is retried
 
   const isAdmin = user.role === ROLE.ADMIN
 
@@ -78,6 +82,25 @@ export default function AdminApplicationsPage() {
       setConfirm(null)
     } finally {
       setBusy(false)
+    }
+  }
+
+  const runDemoReset = async () => {
+    if (demoBusy) return
+    setDemoBusy(true)
+    demoRequest.current ??= crypto.randomUUID()
+    try {
+      await resetDemo({ requestId: demoRequest.current, eventId: demoId.trim() })
+      demoRequest.current = null
+      notify('시연 데이터를 처음 상태로 되돌렸어요. 시연하는 모든 기기에서 새로고침해 주세요.')
+      setDemoAsk(false)
+      reload()
+    } catch (err) {
+      if (err.status && err.status < 500 && err.code !== 'NETWORK_ERROR') demoRequest.current = null
+      notify(apiErrorMessage(err), 'error')
+      setDemoAsk(false)
+    } finally {
+      setDemoBusy(false)
     }
   }
 
@@ -221,6 +244,18 @@ export default function AdminApplicationsPage() {
             )}
           </aside>
         </div>
+
+        <section className="ad-card ad-demo">
+          <h2>시연 데이터 초기화</h2>
+          <p className="ad-lead">시연용 행사를 저장해 둔 처음 상태로 되돌려요. 계정과 비밀번호, 행사 번호는 그대로예요. 서버에서 이 기능을 켜 둔 때만 동작해요.</p>
+          <label className="ad-reason">
+            시연 행사 번호
+            <input value={demoId} onChange={(e) => setDemoId(e.target.value)} spellCheck={false} />
+          </label>
+          <button type="button" className="ad-btn is-danger" disabled={demoBusy || !demoId.trim()} onClick={() => setDemoAsk(true)}>
+            처음 상태로 되돌리기
+          </button>
+        </section>
       </main>
 
       {confirm && (
@@ -238,6 +273,22 @@ export default function AdminApplicationsPage() {
               </button>
               <button type="button" className={`ad-btn ${confirm === 'APPROVED' ? 'is-primary' : 'is-danger'}`} disabled={busy} onClick={() => decide(confirm)}>
                 {confirm === 'APPROVED' ? '승인' : '반려'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {demoAsk && (
+        <div className="ad-modal" role="dialog" aria-modal="true" onClick={() => setDemoAsk(false)}>
+          <div className="ad-modal-box" onClick={(e) => e.stopPropagation()}>
+            <h3>시연 데이터를 처음 상태로 되돌릴까요?</h3>
+            <p>시연 행사에서 그동안 바뀐 부스·공지·출퇴근·신청 내용이 저장된 기준 상태로 돌아가요. 되돌릴 수 없어요.</p>
+            <div className="ad-actions">
+              <button type="button" className="ad-btn" onClick={() => setDemoAsk(false)}>
+                취소
+              </button>
+              <button type="button" className="ad-btn is-danger" disabled={demoBusy} onClick={runDemoReset}>
+                {demoBusy ? '되돌리는 중…' : '되돌리기'}
               </button>
             </div>
           </div>

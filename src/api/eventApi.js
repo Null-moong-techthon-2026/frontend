@@ -28,6 +28,11 @@ export const listMyOpenings = () => get(`/api/me/event-openings${query({ page: 0
 //   decision body { decision:'APPROVED'|'REJECTED', rejectionReason?, revision }
 export const listAdminOpenings = (params) => get(`/api/admin/event-openings${query(params)}`)
 export const getAdminOpening = (id) => get(`/api/admin/event-openings/${id}`)
+// 시연 데이터 초기화 (ADMIN only; the server must have DEMO_RESET_ENABLED=true). Restores the demo event
+// to its saved starting state; accounts, passwords and event ids stay. The requestId is made per click and
+// reused when the same click is retried after a network error.
+export const DEMO_EVENT_ID = 'd3e02026-1111-4000-8000-000000000200'
+export const resetDemo = (body) => post('/api/admin/demo/reset', { confirmation: 'RESET_DEMO', ...body })
 export const decideOpening = (id, body) => post(`/api/admin/event-openings/${id}/decision`, body)
 
 // The operations office's phone number: the contact of the published recruitment (`contactPhone`, read

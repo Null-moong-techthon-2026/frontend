@@ -241,3 +241,24 @@
 .ad-chip {
   white-space: nowrap;
 }
+
+/* 시연 데이터 초기화 */
+.ad-demo {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+.ad-demo h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.ad-demo .ad-lead {
+  margin: 0;
+}
+.ad-demo input {
+  padding: 10px;
+  border: 1px solid #d3dcd8;
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: monospace;
+}

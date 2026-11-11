@@ -136,7 +136,14 @@ export default function MapProvider({ children }) {
 
   const publish = useCallback(async () => {
     const plan = dirty ? await savePins() : draftMap
-    await mapApi.publishFloorPlan(eventId, plan.floorPlanId, plan.revision)
+    const live = await mapApi.publishFloorPlan(eventId, plan.floorPlanId, plan.revision)
+    // Publishing turns the draft into the published map, so the editor would be left without a floor
+    // plan. Start the next draft as a copy of what was just published: the plan stays on screen.
+    try {
+      await mapApi.createFloorPlan(eventId, { sourceFloorPlanId: live?.floorPlanId ?? plan.floorPlanId })
+    } catch {
+      // not fatal: 지도 제작 then offers 게시된 지도로 수정 시작
+    }
     await reload()
   }, [eventId, dirty, draftMap, savePins, reload])
 

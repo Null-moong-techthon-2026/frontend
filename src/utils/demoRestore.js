@@ -145,23 +145,37 @@ export async function restoreDemo(eventId, onStep = () => {}) {
   })
 
   await step('지도', async () => {
-    const pinKey = (p) => [p.pinType, p.label, p.xRatio, p.yRatio].join('|')
+    // Two maps count: the PUBLISHED one (what visitors see) and the DRAFT (what the organizer is editing).
+    // Both must end up as the starting map: the original image and exactly the original pins.
+    const pinKey = (p) => [p.pinType, p.label, p.xRatio, p.yRatio, p.eventBoothId ?? ''].join('|')
     const wantKeys = MAP.pins.map(pinKey).sort()
+    const isStart = (map) => map?.image?.mediaAssetId === MAP.mediaAssetId && same((map.pins ?? []).map(pinKey).sort(), wantKeys)
+    const notes = []
+
+    let editor = await get(`${base}/map-editor`)
     const pub = await get(`/api/public/events/${eventId}/map`)
-    const nowKeys = (pub.pins ?? []).map(pinKey).sort()
-    const editor = await get(`${base}/map-editor`)
-    if (pub.image?.mediaAssetId === MAP.mediaAssetId && same(nowKeys, wantKeys)) {
-      if (editor.draftMap) return '그대로'
-      await post(`${base}/floor-plans`, { sourceFloorPlanId: editor.publishedMap.floorPlanId })
-      return '지도는 그대로 · 편집용 초안만 다시 만듦'
+    let publishedId = editor.publishedMap?.floorPlanId
+    if (!isStart(pub)) {
+      // Rebuild the starting map from its image and pins, and publish it (the old one is archived).
+      if (editor.draftMap) await del(`${base}/floor-plans/${editor.draftMap.floorPlanId}${query({ revision: editor.draftMap.revision })}`)
+      let draft = await post(`${base}/floor-plans`, { mediaAssetId: MAP.mediaAssetId })
+      draft = await put(`${base}/floor-plans/${draft.floorPlanId}`, { revision: draft.revision, pins: MAP.pins.map((p) => ({ id: crypto.randomUUID(), ...p })) })
+      const published = await post(`${base}/floor-plans/${draft.floorPlanId}/publication`, { revision: draft.revision })
+      publishedId = published.floorPlanId ?? draft.floorPlanId
+      editor = await get(`${base}/map-editor`)
+      notes.push('게시된 지도를 처음 상태로 다시 게시함')
     }
-    if (editor.draftMap) await del(`${base}/floor-plans/${editor.draftMap.floorPlanId}${query({ revision: editor.draftMap.revision })}`)
-    let draft = await post(`${base}/floor-plans`, { mediaAssetId: MAP.mediaAssetId })
-    draft = await put(`${base}/floor-plans/${draft.floorPlanId}`, { revision: draft.revision, pins: MAP.pins.map((p) => ({ id: crypto.randomUUID(), ...p })) })
-    const published = await post(`${base}/floor-plans/${draft.floorPlanId}/publication`, { revision: draft.revision })
-    // The editor must not be left empty: start with a draft copy of the map, as the demo event had.
-    await post(`${base}/floor-plans`, { sourceFloorPlanId: published.floorPlanId ?? draft.floorPlanId })
-    return '되돌려 다시 게시함'
+
+    // The draft: gone, or with pins added / moved / removed -> replace it with a fresh copy of the published map.
+    if (!editor.draftMap) {
+      await post(`${base}/floor-plans`, { sourceFloorPlanId: publishedId })
+      notes.push('편집용 초안을 다시 만듦')
+    } else if (!isStart(editor.draftMap)) {
+      await del(`${base}/floor-plans/${editor.draftMap.floorPlanId}${query({ revision: editor.draftMap.revision })}`)
+      await post(`${base}/floor-plans`, { sourceFloorPlanId: publishedId })
+      notes.push('편집 중이던 초안을 처음 상태로 바꿈')
+    }
+    return notes.join(' · ') || '그대로'
   })
 
   await step('스태프', async () => {

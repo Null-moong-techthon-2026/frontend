@@ -468,3 +468,11 @@
 .db-warn {
   color: #b5533c;
 }
+
+/* 시연 초기화 (demo event only) */
+.db-demo { margin-top: 16px; padding: 16px; display: grid; gap: 10px; }
+.db-demo h3 { margin: 0; font-size: 16px; }
+.db-demo p { margin: 0; font-size: 13px; line-height: 1.5; }
+.db-demo-ask { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.db-demo-report { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.db-demo-report .is-fail { color: #c0392b; }

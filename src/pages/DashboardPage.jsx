@@ -2,6 +2,7 @@ import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getDashboard } from '../api/eventApi'
+import DemoRestoreCard from '../components/DemoRestoreCard'
 import EventEditModal from '../components/EventEditModal'
 import OrganizerLayout, { Icon } from '../components/OrganizerLayout'
 import Toast from '../components/Toast'
@@ -21,6 +22,7 @@ import { formatDateTime, instantToLocalDateTime } from '../utils/date'
 import { getEventProgress } from '../utils/event'
 import { audienceText, noticeDateText, sortNotices, toNotice } from '../utils/notice'
 import { getRecruitStatus } from '../utils/recruit'
+import { isDemoEvent } from '../utils/demoRestore'
 import { useToast } from '../utils/useToast'
 import './dashboard.css'
 
@@ -437,6 +439,7 @@ export default function DashboardPage() {
             </div>
           </section>
         </div>
+        {isDemoEvent(event.id) && <DemoRestoreCard eventId={event.id} />}
       </div>
       <Toast toast={toast} />
       {editOpen && (

@@ -1,11 +1,11 @@
 import { del, get, patch, post, put, query } from '../api/client'
-import { DEMO_BASELINE as B } from '../constants/demoBaseline'
+import { DEMO_BASELINE as B, DEMO_MAP_BASELINE as MAP } from '../constants/demoBaseline'
 
 // 시연 초기화 (front-end only): puts the demo event "[시연] 부스럭 캠퍼스 페스티벌" back to its starting
 // state as far as the organizer's own API allows. Run by the organizer account of that event.
 //   Removed:  notices, staff duties, shifts that have not started, booth menu items, and staff
 //             applications that were not there at the start (rejected, so the roster hides them).
-//   Restored: event name / venue / description, notice texts, duty names, booth info, operation
+//   Restored: the floor map (image and pins), event name / venue / description, notice texts, duty names, booth info, operation
 //             status and menu items (name, price, stock), staff role / duty / memo / status.
 //   Cannot be undone (no API): approved or cancelled booth applications, clock-in records, shifts that
 //   already started, staff approved after the start, booths added by hand.
@@ -142,6 +142,20 @@ export async function restoreDemo(eventId, onStep = () => {}) {
       }
     }
     return touched ? `고침 ${touched}` : '그대로'
+  })
+
+  await step('지도', async () => {
+    const pinKey = (p) => [p.pinType, p.label, p.xRatio, p.yRatio].join('|')
+    const wantKeys = MAP.pins.map(pinKey).sort()
+    const pub = await get(`/api/public/events/${eventId}/map`)
+    const nowKeys = (pub.pins ?? []).map(pinKey).sort()
+    if (pub.image?.mediaAssetId === MAP.mediaAssetId && same(nowKeys, wantKeys)) return '그대로'
+    const editor = await get(`${base}/map-editor`)
+    if (editor.draftMap) await del(`${base}/floor-plans/${editor.draftMap.floorPlanId}${query({ revision: editor.draftMap.revision })}`)
+    let draft = await post(`${base}/floor-plans`, { mediaAssetId: MAP.mediaAssetId })
+    draft = await put(`${base}/floor-plans/${draft.floorPlanId}`, { revision: draft.revision, pins: MAP.pins.map((p) => ({ id: crypto.randomUUID(), ...p })) })
+    await post(`${base}/floor-plans/${draft.floorPlanId}/publication`, { revision: draft.revision })
+    return '되돌려 다시 게시함'
   })
 
   await step('스태프', async () => {

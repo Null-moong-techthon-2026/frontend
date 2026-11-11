@@ -231,3 +231,13 @@ export const DEMO_BASELINE = {
     }
   ]
 }
+
+// The published floor map: its image and pins (ratios 0..1 of the image).
+export const DEMO_MAP_BASELINE = {
+  mediaAssetId: 'ddddfba1-f2b1-43de-a6de-49399a150d50',
+  pins: [
+    { pinType: 'INFO', label: '안내소', xRatio: 0.5, yRatio: 0.8, eventBoothId: null },
+    { pinType: 'BOOTH', label: '달빛 떡볶이', xRatio: 0.23, yRatio: 0.35, eventBoothId: 'd3e02026-1111-4000-8000-000000000601' },
+    { pinType: 'TOILET', label: '화장실', xRatio: 0.85, yRatio: 0.7, eventBoothId: null },
+  ],
+}

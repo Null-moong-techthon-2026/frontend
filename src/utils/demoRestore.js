@@ -149,12 +149,18 @@ export async function restoreDemo(eventId, onStep = () => {}) {
     const wantKeys = MAP.pins.map(pinKey).sort()
     const pub = await get(`/api/public/events/${eventId}/map`)
     const nowKeys = (pub.pins ?? []).map(pinKey).sort()
-    if (pub.image?.mediaAssetId === MAP.mediaAssetId && same(nowKeys, wantKeys)) return '그대로'
     const editor = await get(`${base}/map-editor`)
+    if (pub.image?.mediaAssetId === MAP.mediaAssetId && same(nowKeys, wantKeys)) {
+      if (editor.draftMap) return '그대로'
+      await post(`${base}/floor-plans`, { sourceFloorPlanId: editor.publishedMap.floorPlanId })
+      return '지도는 그대로 · 편집용 초안만 다시 만듦'
+    }
     if (editor.draftMap) await del(`${base}/floor-plans/${editor.draftMap.floorPlanId}${query({ revision: editor.draftMap.revision })}`)
     let draft = await post(`${base}/floor-plans`, { mediaAssetId: MAP.mediaAssetId })
     draft = await put(`${base}/floor-plans/${draft.floorPlanId}`, { revision: draft.revision, pins: MAP.pins.map((p) => ({ id: crypto.randomUUID(), ...p })) })
-    await post(`${base}/floor-plans/${draft.floorPlanId}/publication`, { revision: draft.revision })
+    const published = await post(`${base}/floor-plans/${draft.floorPlanId}/publication`, { revision: draft.revision })
+    // The editor must not be left empty: start with a draft copy of the map, as the demo event had.
+    await post(`${base}/floor-plans`, { sourceFloorPlanId: published.floorPlanId ?? draft.floorPlanId })
     return '되돌려 다시 게시함'
   })
 

@@ -21,7 +21,7 @@ export const API_ERROR_MESSAGE = {
   RATE_LIMITED: '요청이 너무 많아요. 잠시 후 다시 시도해 주세요.',
   DEMO_RESET_BUSY: '시연 데이터를 이미 되돌리는 중이에요. 잠시 뒤에 다시 확인해 주세요.',
   DEMO_NOT_READY: '시연 데이터가 아직 준비되지 않았어요. 백엔드 팀에 확인해 주세요.',
-  DEMO_RESET_UNSAFE: '안전 조건에 걸려 되돌리지 않았어요. 백엔드 팀에 확인해 주세요.',
+  DEMO_RESET_UNSAFE: '서버의 보호 조건에 걸려 되돌리지 않았어요. 백엔드 팀에 확인해 주세요.',
   MEDIA_STORAGE_ERROR: '이미지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.',
 }
 

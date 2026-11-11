@@ -97,7 +97,9 @@ export default function AdminApplicationsPage() {
       reload()
     } catch (err) {
       if (err.status && err.status < 500 && err.code !== 'NETWORK_ERROR') demoRequest.current = null
-      notify(apiErrorMessage(err), 'error')
+      // The server says in its own words why it refused (e.g. DEMO_RESET_UNSAFE): show that too.
+      const why = err.code?.startsWith('DEMO_') && err.message && err.message !== err.code ? ' (서버 설명: ' + err.message + ')' : ''
+      notify(apiErrorMessage(err) + why, 'error')
       setDemoAsk(false)
     } finally {
       setDemoBusy(false)

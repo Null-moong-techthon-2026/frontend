@@ -7,7 +7,7 @@ import {
   BOOTH_NAME_MAX,
   BOOTH_STATUS,
   BOOTH_STATUS_LABEL,
-  applicationStatusRank,
+  reviewQueueRank,
   DOCUMENT_CHECK_LABEL,
 } from '../constants/booth'
 import { apiErrorMessage } from '../constants/errors'
@@ -214,10 +214,10 @@ export default function BoothManagePage() {
     }
   }, [eventId, debouncedQuery, category, statusFilter, sort, listVersion])
 
-  // Group by status (the server's order inside each group is kept), then cut the page here.
+  // Group by status: in review first (the server's order inside each group is kept), then cut the page here.
   const list = useMemo(() => {
     if (!allRows) return null
-    const sorted = [...allRows].sort((a, b) => applicationStatusRank(a.reviewStatus) - applicationStatusRank(b.reviewStatus))
+    const sorted = [...allRows].sort((a, b) => reviewQueueRank(a.reviewStatus) - reviewQueueRank(b.reviewStatus))
     const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
     const p = Math.min(page, totalPages)
     return { content: sorted.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE), totalElements: sorted.length, totalPages }

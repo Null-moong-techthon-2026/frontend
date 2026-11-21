@@ -16,6 +16,14 @@ export const applicationStatusRank = (status) => {
   return i < 0 ? STATUS_ORDER.length : i
 }
 
+// The organizer's 부스 관리 list puts what still needs a decision first: in review, then approved,
+// then rejected, then cancelled.
+const REVIEW_QUEUE_ORDER = [BOOTH_STATUS.PENDING, BOOTH_STATUS.APPROVED, BOOTH_STATUS.REJECTED, BOOTH_STATUS.CANCELLED]
+export const reviewQueueRank = (status) => {
+  const i = REVIEW_QUEUE_ORDER.indexOf(status)
+  return i < 0 ? REVIEW_QUEUE_ORDER.length : i
+}
+
 export const BOOTH_STATUS_LABEL = {
   [BOOTH_STATUS.PENDING]: '검토 중',
   [BOOTH_STATUS.APPROVED]: '승인',

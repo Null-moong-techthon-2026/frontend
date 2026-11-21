@@ -21,7 +21,7 @@ import Toast from '../components/Toast'
 import { apiErrorMessage } from '../constants/errors'
 import { useEvent } from '../context/useEvent'
 import { STAFF_ROLE, STAFF_ROLE_LABEL, STAFF_STATUS, STAFF_STATUS_LABEL, countBy } from '../dummy/staffStore'
-import { eventDays, todayYmd } from '../utils/eventDays'
+import { eventDays, scheduleDay, todayYmd } from '../utils/eventDays'
 import { useAsync } from '../utils/useAsync'
 import { useToast } from '../utils/useToast'
 import './staff.css'
@@ -564,7 +564,7 @@ function DutyModal({ actions, onClose }) {
 // ---------------------------------------------------------------- 근무표
 function Schedule({ board, event, onAdd, notify }) {
   const days = useMemo(() => eventDays(event), [event])
-  const [day, setDay] = useState(days[0])
+  const [day, setDay] = useState(() => scheduleDay(event)) // opens on today (the first day when today is not an event day)
   const [selectedId, setSelectedId] = useState(null)
   const { data: rows, error, reload } = useAsync(() => listShifts(event.id, day), [event.id, day])
   const shifts = rows ?? []
@@ -843,7 +843,7 @@ function ShiftRemoveModal({ shift, duty, eventId, onClose, onSaved, notify }) {
 function ShiftModal({ board, event, onClose, onCreated, notify }) {
   const days = useMemo(() => eventDays(event), [event])
   const [mode, setMode] = useState('new')
-  const [form, setForm] = useState({ date: days[0], start: '14:00', end: '16:00', zone: '', name: '', dutyId: board.duties[0]?.id ?? '', roles: [STAFF_ROLE.STAFF, STAFF_ROLE.LABOR] })
+  const [form, setForm] = useState({ date: scheduleDay(event), start: '14:00', end: '16:00', zone: '', name: '', dutyId: board.duties[0]?.id ?? '', roles: [STAFF_ROLE.STAFF, STAFF_ROLE.LABOR] })
   const [busy, setBusy] = useState(false)
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
   const toggleRole = (r) => setForm((f) => ({ ...f, roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r] }))
